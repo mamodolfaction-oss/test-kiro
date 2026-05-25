@@ -568,6 +568,76 @@ fviz_screeplot(res_mca, addlabels = TRUE, ylim = c(0, 20),
 
 
 
+## Interpretasi Eigenvalues dan Dimensi
+
+```{r interpretasi-eigenvalues, results='asis'}
+# ============================================================
+# INTERPRETASI NARATIF EIGENVALUES
+# ============================================================
+
+# Hitung jumlah dimensi signifikan (eigenvalue > 1/K)
+threshold <- 1/K
+n_sig <- sum(eig$eigenvalue > threshold)
+cum_sig <- round(eig$cumulative.variance.percent[n_sig], 2)
+
+cat("### Hasil Analisis Eigenvalues\n\n")
+
+cat(paste0(
+  "Hasil MCA menghasilkan **", nrow(eig), " dimensi** dari ", K,
+  " variabel aktif dengan total ", J, " kategori. ",
+  "Berdasarkan kriteria eigenvalue di atas rata-rata (1/K = 1/", K,
+  " = ", round(threshold, 4), "), terdapat **", n_sig,
+  " dimensi yang signifikan** yang secara kumulatif menjelaskan **",
+  cum_sig, "%** dari total inertia (variance).\n\n"
+))
+
+cat(paste0(
+  "**Dimensi 1** memiliki eigenvalue terbesar yaitu **", round(eig$eigenvalue[1], 4),
+  "** dan menjelaskan **", round(eig$variance.percent[1], 2),
+  "%** variance. Dimensi ini merupakan dimensi paling penting yang menangkap ",
+  "pola hubungan utama antar kategori variabel. Terjadi penurunan yang cukup besar ",
+  "dari Dimensi 1 (", round(eig$variance.percent[1], 2), "%) ke Dimensi 2 (",
+  round(eig$variance.percent[2], 2), "%), yang mengindikasikan bahwa Dimensi 1 ",
+  "memiliki peran dominan dalam menjelaskan struktur data.\n\n"
+))
+
+cat(paste0(
+  "**Dimensi 1 dan 2** secara bersama-sama menjelaskan **",
+  round(eig$cumulative.variance.percent[2], 2),
+  "%** variance, yang menjadi dasar utama untuk visualisasi biplot dua dimensi. ",
+  "Meskipun persentase ini terlihat kecil dibandingkan dengan PCA pada data kontinu, ",
+  "hal ini merupakan karakteristik umum MCA karena data kategorikal menghasilkan ",
+  "banyak dimensi dan inertia terdistribusi secara merata.\n\n"
+))
+
+cat(paste0(
+  "**Dimensi 1 sampai 5** secara kumulatif menjelaskan **",
+  round(eig$cumulative.variance.percent[5], 2),
+  "%** variance. Kelima dimensi ini dipilih sebagai skor prediktor untuk tahap ",
+  "selanjutnya (Regresi Logistik Ordinal) karena masing-masing masih memiliki ",
+  "eigenvalue yang berada di atas ambang batas rata-rata.\n\n"
+))
+
+cat(paste0(
+  "Berdasarkan scree plot, terlihat adanya penurunan tajam (*elbow*) setelah Dimensi 1, ",
+  "kemudian penurunan yang lebih landai pada dimensi-dimensi berikutnya. ",
+  "Pola ini mengkonfirmasi bahwa informasi utama terkonsentrasi pada beberapa ",
+  "dimensi pertama, sementara dimensi-dimensi selanjutnya hanya menangkap ",
+  "variasi residual yang semakin kecil.\n\n"
+))
+
+cat(paste0(
+  "**Kesimpulan:** Dari ", nrow(eig), " dimensi yang dihasilkan, **", n_sig,
+  " dimensi** (kumulatif ", cum_sig, "%) dianggap informatif berdasarkan ",
+  "kriteria rata-rata eigenvalue. Untuk keperluan regresi logistik ordinal, ",
+  "digunakan **5 dimensi pertama** (", round(eig$cumulative.variance.percent[5], 2),
+  "%) sebagai variabel prediktor kontinu yang merangkum pola hubungan ",
+  "antar kategori variabel secara efisien dan ortogonal (tidak saling berkorelasi).\n"
+))
+```
+
+
+
 ## Kontribusi Variabel
 
 ```{r var-contribution}
