@@ -373,6 +373,71 @@ for(i in seq_along(vars_active)) {
 do.call(gridExtra::grid.arrange, c(plot_list, ncol = 3))
 ```
 
+## Karakteristik X4 (Jumlah Platform AI yang Digunakan)
+
+```{r deskriptif-X4, fig.height=6, fig.width=10}
+# Statistik deskriptif X4
+cat("Statistik Deskriptif X4 (Jumlah Platform AI yang Digunakan):\n")
+cat("="*50, "\n")
+cat("N:", sum(!is.na(df_mca_complete$X4)), "\n")
+cat("Min:", min(df_mca_complete$X4, na.rm=TRUE), "\n")
+cat("Max:", max(df_mca_complete$X4, na.rm=TRUE), "\n")
+cat("Mean:", round(mean(df_mca_complete$X4, na.rm=TRUE), 2), "\n")
+cat("Median:", median(df_mca_complete$X4, na.rm=TRUE), "\n")
+cat("SD:", round(sd(df_mca_complete$X4, na.rm=TRUE), 2), "\n")
+
+# Boxplot X4 keseluruhan
+p_box1 <- ggplot(df_mca_complete, aes(y = X4)) +
+  geom_boxplot(fill = "#69b3a2", color = "black", alpha = 0.7, width = 0.4) +
+  geom_jitter(width = 0.1, alpha = 0.3, size = 1.5, color = "darkblue") +
+  labs(title = "Boxplot X4 - Jumlah Platform AI yang Digunakan",
+       y = "Jumlah Platform AI", x = "") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+# Boxplot X4 berdasarkan Y (Loyalitas)
+p_box2 <- ggplot(df_mca_complete, aes(x = Y, y = X4, fill = Y)) +
+  geom_boxplot(color = "black", alpha = 0.7, outlier.shape = 21) +
+  geom_jitter(width = 0.15, alpha = 0.3, size = 1.5) +
+  scale_fill_brewer(palette = "RdYlGn") +
+  labs(title = "Boxplot X4 berdasarkan Loyalitas (Y)",
+       x = "Kategori Loyalitas", y = "Jumlah Platform AI") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5))
+
+grid.arrange(p_box1, p_box2, ncol = 2)
+```
+
+```{r boxplot-X4-detail, fig.height=10, fig.width=12}
+# Boxplot X4 berdasarkan variabel demografis
+p_x4_x1 <- ggplot(df_mca_complete, aes(x = X1, y = X4, fill = X1)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "X4 vs X1 (Departemen)", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+p_x4_x2 <- ggplot(df_mca_complete, aes(x = X2, y = X4, fill = X2)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "X4 vs X2 (Angkatan)", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+p_x4_x5 <- ggplot(df_mca_complete, aes(x = X5, y = X4, fill = X5)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "X4 vs X5 (Jenis Akses)", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+p_x4_x11a <- ggplot(df_mca_complete, aes(x = X11a, y = X4, fill = X11a)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "X4 vs X11a (Pernah Berlangganan)", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+grid.arrange(p_x4_x1, p_x4_x2, p_x4_x5, p_x4_x11a, ncol = 2)
+```
+
 ## Distribusi Variabel Dependen (Y - Loyalitas)
 
 ```{r deskriptif-Y}
