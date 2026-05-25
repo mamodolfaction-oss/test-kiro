@@ -101,83 +101,118 @@ cat("\nTotal missing values:", sum(is.na(df_raw)), "\n")
 
 ## Kategorisasi Variabel Komposit
 
-Berdasarkan kode buku (codebook), variabel komposit dihitung dari skor total item-item penyusunnya kemudian dikategorikan.
+Berdasarkan kode buku (codebook), variabel komposit dihitung dari skor total item-item penyusunnya kemudian dikategorikan menggunakan **rumus interval kelas tetap**:
+
+$$\text{Interval} = \frac{\text{Skor Maksimum} - \text{Skor Minimum}}{3}$$
+
+| Variabel | Item | Min | Max | Interval | Rendah | Sedang | Tinggi |
+|----------|-----:|----:|----:|---------:|--------|--------|--------|
+| Y (Loyalitas) | 6 | 6 | 24 | 6 | 6-12 | 13-18 | 19-24 |
+| X6 (Multi-Platform AI) | 4 | 4 | 16 | 4 | 4-8 | 9-12 | 13-16 |
+| X7 (Intensitas Penggunaan) | 3 | 3 | 12 | 3 | 3-6 | 7-9 | 10-12 |
+| X8 (Keinginan Berlangganan) | 3 | 3 | 12 | 3 | 3-6 | 7-9 | 10-12 |
+| X9 (Sensitivitas Harga) | 2 | 2 | 8 | 2 | 2-4 | 5-6 | 7-8 |
 
 ```{r kategorisasi}
 # ============================================================
 # VARIABEL DEPENDEN: Y (Loyalitas) dari L1-L6
+# Interval = (24 - 6) / 3 = 6
+# Rendah: 6-12, Sedang: 13-18, Tinggi: 19-24
 # ============================================================
 df <- df_raw
 
 # Hitung skor total Loyalitas (L1-L6)
 df$Y_skor <- rowSums(df[, c("L1","L2","L3","L4","L5","L6")], na.rm = TRUE)
 
-# Kategorisasi Y berdasarkan terciles (atau batas logis)
-# Skor min = 6, max = 24
 cat("Statistik skor Loyalitas (L1-L6):\n")
 cat("Min:", min(df$Y_skor, na.rm=TRUE), "| Max:", max(df$Y_skor, na.rm=TRUE),
     "| Mean:", round(mean(df$Y_skor, na.rm=TRUE),2), "\n")
-
-# Kategorisasi menggunakan terciles
-q_Y <- quantile(df$Y_skor, probs = c(1/3, 2/3), na.rm = TRUE)
-cat("Terciles Y:", q_Y[1], ",", q_Y[2], "\n")
+cat("Interval kelas: (24 - 6) / 3 = 6\n")
+cat("Rendah: 6-12 | Sedang: 13-18 | Tinggi: 19-24\n")
 
 df$Y <- cut(df$Y_skor,
-            breaks = c(-Inf, q_Y[1], q_Y[2], Inf),
-            labels = c("1", "2", "3"),  # 1=Rendah, 2=Sedang, 3=Tinggi
+            breaks = c(5, 12, 18, 24),  # 6-12, 13-18, 19-24
+            labels = c("1", "2", "3"),   # 1=Rendah, 2=Sedang, 3=Tinggi
             include.lowest = TRUE)
+
+cat("\nDistribusi Y:\n")
+print(table(df$Y, useNA = "ifany"))
 
 # ============================================================
 # X6: Multi-Platform AI dari M1-M4
+# Interval = (16 - 4) / 3 = 4
+# Rendah: 4-8, Sedang: 9-12, Tinggi: 13-16
 # ============================================================
 df$X6_skor <- rowSums(df[, c("M1","M2","M3","M4")], na.rm = TRUE)
 cat("\nStatistik skor Multi-Platform AI (M1-M4):\n")
 cat("Min:", min(df$X6_skor, na.rm=TRUE), "| Max:", max(df$X6_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (16 - 4) / 3 = 4\n")
+cat("Rendah: 4-8 | Sedang: 9-12 | Tinggi: 13-16\n")
 
-q_X6 <- quantile(df$X6_skor, probs = c(1/3, 2/3), na.rm = TRUE)
 df$X6 <- cut(df$X6_skor,
-             breaks = c(-Inf, q_X6[1], q_X6[2], Inf),
+             breaks = c(3, 8, 12, 16),  # 4-8, 9-12, 13-16
              labels = c("1", "2", "3"),
              include.lowest = TRUE)
 
+cat("\nDistribusi X6:\n")
+print(table(df$X6, useNA = "ifany"))
+
 # ============================================================
 # X7: Intensitas Penggunaan dari I2-I4
+# Interval = (12 - 3) / 3 = 3
+# Rendah: 3-6, Sedang: 7-9, Tinggi: 10-12
 # ============================================================
 df$X7_skor <- rowSums(df[, c("I2","I3","I4")], na.rm = TRUE)
 cat("\nStatistik skor Intensitas Penggunaan (I2-I4):\n")
 cat("Min:", min(df$X7_skor, na.rm=TRUE), "| Max:", max(df$X7_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (12 - 3) / 3 = 3\n")
+cat("Rendah: 3-6 | Sedang: 7-9 | Tinggi: 10-12\n")
 
-q_X7 <- quantile(df$X7_skor, probs = c(1/3, 2/3), na.rm = TRUE)
 df$X7 <- cut(df$X7_skor,
-             breaks = c(-Inf, q_X7[1], q_X7[2], Inf),
+             breaks = c(2, 6, 9, 12),  # 3-6, 7-9, 10-12
              labels = c("1", "2", "3"),
              include.lowest = TRUE)
 
+cat("\nDistribusi X7:\n")
+print(table(df$X7, useNA = "ifany"))
+
 # ============================================================
 # X8: Keinginan Berlangganan dari W1-W3
+# Interval = (12 - 3) / 3 = 3
+# Rendah: 3-6, Sedang: 7-9, Tinggi: 10-12
 # ============================================================
 df$X8_skor <- rowSums(df[, c("W1","W2","W3")], na.rm = TRUE)
 cat("\nStatistik skor Keinginan Berlangganan (W1-W3):\n")
 cat("Min:", min(df$X8_skor, na.rm=TRUE), "| Max:", max(df$X8_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (12 - 3) / 3 = 3\n")
+cat("Rendah: 3-6 | Sedang: 7-9 | Tinggi: 10-12\n")
 
-q_X8 <- quantile(df$X8_skor, probs = c(1/3, 2/3), na.rm = TRUE)
 df$X8 <- cut(df$X8_skor,
-             breaks = c(-Inf, q_X8[1], q_X8[2], Inf),
+             breaks = c(2, 6, 9, 12),  # 3-6, 7-9, 10-12
              labels = c("1", "2", "3"),
              include.lowest = TRUE)
 
+cat("\nDistribusi X8:\n")
+print(table(df$X8, useNA = "ifany"))
+
 # ============================================================
 # X9: Sensitivitas Harga dari H1-H2
+# Interval = (8 - 2) / 3 = 2
+# Rendah: 2-4, Sedang: 5-6, Tinggi: 7-8
 # ============================================================
 df$X9_skor <- rowSums(df[, c("H1","H2")], na.rm = TRUE)
 cat("\nStatistik skor Sensitivitas Harga (H1-H2):\n")
 cat("Min:", min(df$X9_skor, na.rm=TRUE), "| Max:", max(df$X9_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (8 - 2) / 3 = 2\n")
+cat("Rendah: 2-4 | Sedang: 5-6 | Tinggi: 7-8\n")
 
-q_X9 <- quantile(df$X9_skor, probs = c(1/3, 2/3), na.rm = TRUE)
 df$X9 <- cut(df$X9_skor,
-             breaks = c(-Inf, q_X9[1], q_X9[2], Inf),
+             breaks = c(1, 4, 6, 8),  # 2-4, 5-6, 7-8
              labels = c("1", "2", "3"),
              include.lowest = TRUE)
+
+cat("\nDistribusi X9:\n")
+print(table(df$X9, useNA = "ifany"))
 ```
 
 
