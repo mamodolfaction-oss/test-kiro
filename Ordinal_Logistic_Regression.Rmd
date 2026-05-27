@@ -1,0 +1,693 @@
+---
+title: "Regresi Logistik Ordinal - Loyalitas Pengguna ChatGPT"
+author: "Analisis Regresi Logistik Ordinal"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 8,
+  fig.align = "center"
+)
+```
+
+# Pendahuluan
+
+Dokumen ini melanjutkan analisis dari **Multiple Correspondence Analysis (MCA)** ke tahap
+**Regresi Logistik Ordinal**. Skor 7 dimensi MCA (berdasarkan kriteria Kaiser: eigenvalue > 1/K)
+digunakan sebagai variabel prediktor untuk memodelkan loyalitas pengguna ChatGPT
+(Y: Rendah < Sedang < Tinggi).
+
+**Keunggulan menggunakan skor dimensi MCA sebagai prediktor:**
+
+- Dimensi MCA bersifat **ortogonal** (tidak saling berkorelasi), sehingga asumsi
+  non-multikolinearitas terpenuhi secara otomatis
+- Mereduksi 11 variabel kategorikal menjadi 7 dimensi kontinu
+- Mengatasi masalah terlalu banyak parameter relatif terhadap jumlah observasi
+
+# Load Packages
+
+```{r load-packages}
+required_packages <- c("MASS", "ordinal", "car", "ggplot2",
+                       "knitr", "kableExtra", "dplyr",
+                       "factoextra", "gridExtra", "RColorBrewer")
+
+new_packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
+if(length(new_packages)) install.packages(new_packages, repos = "https://cran.r-project.org")
+
+library(MASS)
+library(ordinal)
+library(car)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(factoextra)
+library(gridExtra)
+library(RColorBrewer)
+```
+
+
+# Load Data dan Persiapan
+
+```{r load-data}
+# Load hasil MCA
+res_mca <- readRDS("hasil_mca.rds")
+
+# Load dataset
+df_reg <- read.csv("data_for_ordinal_regression.csv")
+df_reg$Y <- factor(df_reg$Y, levels = c("Rendah", "Sedang", "Tinggi"), ordered = TRUE)
+
+# ============================================================
+# Kriteria Kaiser: eigenvalue > 1/K = 1/11 = 0.0909
+# ============================================================
+eig    <- get_eigenvalue(res_mca)
+K      <- 11
+n_dim  <- sum(eig$eigenvalue > 1/K)   # = 7
+
+cat("Kriteria Kaiser: eigenvalue > 1/K =", round(1/K, 4), "\n")
+cat("Jumlah dimensi yang dipertahankan:", n_dim, "\n")
+cat("Kumulatif variance explained:", round(eig$cumulative.variance.percent[n_dim], 2), "%\n\n")
+
+# Ekstrak skor 7 dimensi
+ind_coord <- as.data.frame(res_mca$ind$coord[, 1:n_dim])
+colnames(ind_coord) <- paste0("Dim", 1:n_dim)
+
+df_olr <- data.frame(Y = df_reg$Y, ind_coord)
+
+cat("Distribusi Y:\n")
+print(table(df_olr$Y))
+cat("\n10 baris pertama:\n")
+kable(head(df_olr, 10), digits = 4,
+      caption = "Dataset Regresi Logistik Ordinal (Y + 7 Skor Dimensi MCA)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+# Uji Independensi (Chi-Square)
+
+Sebelum membangun model, dilakukan uji Chi-Square untuk memeriksa apakah terdapat
+hubungan antara variabel-variabel kategorik asli dengan loyalitas (Y).
+
+```{r chi-square}
+# Variabel kategorik asli dari dataset
+vars_cat <- c("X1","X2","X3","X5","X6","X7","X8","X9","X10","X11a","X12a")
+Y_orig   <- df_reg$Y
+
+cat("UJI INDEPENDENSI CHI-SQUARE (Variabel vs Loyalitas Y)\n")
+cat(strrep("=", 55), "\n\n")
+
+hasil_chi <- data.frame(
+  Variabel    = character(),
+  Chi_Square  = numeric(),
+  df          = numeric(),
+  p_value     = numeric(),
+  Keputusan   = character(),
+  stringsAsFactors = FALSE
+)
+
+for (var in vars_cat) {
+  if (var %in% names(df_reg)) {
+    tbl     <- table(df_reg[[var]], Y_orig)
+    ct      <- suppressWarnings(chisq.test(tbl))
+    keputusan <- ifelse(ct$p.value < 0.05, "Tolak H0 (Ada hubungan)", "Gagal Tolak H0")
+    hasil_chi <- rbind(hasil_chi, data.frame(
+      Variabel   = var,
+      Chi_Square = round(ct$statistic, 4),
+      df         = ct$parameter,
+      p_value    = round(ct$p.value, 4),
+      Keputusan  = keputusan,
+      stringsAsFactors = FALSE
+    ))
+  }
+}
+
+kable(hasil_chi, row.names = FALSE,
+      caption = "Hasil Uji Chi-Square: Hubungan Variabel dengan Loyalitas (Y)",
+      col.names = c("Variabel", "Chi-Square", "df", "p-value", "Keputusan")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  footnote(general = "H0: Tidak ada hubungan antara variabel dan Y. Alpha = 0.05")
+```
+
+
+# Estimasi Parameter
+
+Model regresi logistik ordinal diestimasi menggunakan metode **Maximum Likelihood Estimation (MLE)**
+dengan link function logit (Proportional Odds Model).
+
+**Persamaan model:**
+
+$$\text{logit}[P(Y \leq j)] = \alpha_j - (\beta_1 Dim_1 + \beta_2 Dim_2 + \cdots + \beta_7 Dim_7), \quad j = 1, 2$$
+
+Di mana $\alpha_j$ adalah threshold (intercept) untuk kategori ke-$j$, dan $\beta_k$ adalah
+koefisien dimensi MCA ke-$k$.
+
+```{r estimasi-parameter}
+# ============================================================
+# Bangun model penuh dengan 7 dimensi MCA
+# ============================================================
+model_clm <- clm(Y ~ Dim1 + Dim2 + Dim3 + Dim4 + Dim5 + Dim6 + Dim7,
+                 data  = df_olr,
+                 link  = "logit")
+
+# Null model untuk perbandingan
+model_null <- clm(Y ~ 1, data = df_olr, link = "logit")
+
+cat("ESTIMASI PARAMETER - MODEL REGRESI LOGISTIK ORDINAL\n")
+cat(strrep("=", 55), "\n\n")
+cat("Formula : Y ~ Dim1 + Dim2 + Dim3 + Dim4 + Dim5 + Dim6 + Dim7\n")
+cat("Link    : logit (Proportional Odds)\n")
+cat("Metode  : Maximum Likelihood Estimation (MLE)\n\n")
+
+# Ekstrak koefisien lengkap
+summ     <- summary(model_clm)
+coef_all <- summ$coefficients
+
+# Tabel parameter
+param_df <- data.frame(
+  Parameter  = rownames(coef_all),
+  Estimate   = round(coef_all[, "Estimate"], 4),
+  Std_Error  = round(coef_all[, "Std. Error"], 4),
+  z_value    = round(coef_all[, "z value"], 4),
+  p_value    = round(coef_all[, "Pr(>|z|)"], 4),
+  Sig        = ifelse(coef_all[, "Pr(>|z|)"] < 0.001, "***",
+               ifelse(coef_all[, "Pr(>|z|)"] < 0.01,  "**",
+               ifelse(coef_all[, "Pr(>|z|)"] < 0.05,  "*",
+               ifelse(coef_all[, "Pr(>|z|)"] < 0.1,   ".", "")))),
+  stringsAsFactors = FALSE
+)
+
+kable(param_df, row.names = FALSE,
+      caption = "Estimasi Parameter Model Regresi Logistik Ordinal",
+      col.names = c("Parameter", "Estimate (B)", "Std. Error", "z value", "p-value", "Sig.")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  footnote(general = "*** p<0.001  ** p<0.01  * p<0.05  . p<0.1")
+```
+
+
+# Pembentukan Model Regresi Logistik Ordinal
+
+Berdasarkan estimasi parameter di atas, model regresi logistik ordinal yang terbentuk adalah:
+
+```{r bentuk-model, results='asis'}
+coef_pred  <- coef_all[grep("Dim", rownames(coef_all)), "Estimate"]
+threshold  <- coef_all[!grepl("Dim", rownames(coef_all)), "Estimate"]
+
+cat("### Persamaan Model\n\n")
+cat("**Threshold (Intercept):**\n\n")
+cat("- $\\alpha_1$ (Rendah|Sedang) =", round(threshold[1], 4), "\n")
+cat("- $\\alpha_2$ (Sedang|Tinggi) =", round(threshold[2], 4), "\n\n")
+
+cat("**Koefisien Prediktor:**\n\n")
+for (i in seq_along(coef_pred)) {
+  cat("- $\\beta_{", i, "}$ (Dim", i, ") =", round(coef_pred[i], 4), "\n")
+}
+
+cat("\n\n**Model lengkap:**\n\n")
+cat("$$\\text{logit}[P(Y \\leq 1)] =", round(threshold[1], 4))
+for (i in seq_along(coef_pred)) {
+  sign_str <- ifelse(coef_pred[i] >= 0, " - ", " + ")
+  cat(sign_str, abs(round(coef_pred[i], 4)), "\\cdot Dim_", i)
+}
+cat("$$\n\n")
+
+cat("$$\\text{logit}[P(Y \\leq 2)] =", round(threshold[2], 4))
+for (i in seq_along(coef_pred)) {
+  sign_str <- ifelse(coef_pred[i] >= 0, " - ", " + ")
+  cat(sign_str, abs(round(coef_pred[i], 4)), "\\cdot Dim_", i)
+}
+cat("$$\n")
+```
+
+
+# Uji Simultan (Likelihood Ratio Test)
+
+Uji simultan menguji apakah **minimal satu** dimensi MCA berpengaruh signifikan terhadap Y
+secara bersama-sama.
+
+$$H_0: \beta_1 = \beta_2 = \cdots = \beta_7 = 0$$
+$$H_1: \text{Minimal satu } \beta_k \neq 0$$
+
+```{r uji-simultan}
+# ============================================================
+# LIKELIHOOD RATIO TEST (G-test) - Simultan
+# ============================================================
+lr_test <- anova(model_null, model_clm)
+
+cat("UJI SIMULTAN - LIKELIHOOD RATIO TEST\n")
+cat(strrep("=", 55), "\n\n")
+print(lr_test)
+
+# Ambil nilai
+G_stat  <- lr_test$LR.stat[2]
+df_lrt  <- lr_test$df[2]
+p_lrt   <- lr_test$`Pr(>Chisq)`[2]
+
+cat("\n\nRingkasan:\n")
+cat(sprintf("  Statistik G  : %.4f\n", G_stat))
+cat(sprintf("  df           : %d\n", df_lrt))
+cat(sprintf("  p-value      : %.6f\n", p_lrt))
+cat("\nKeputusan:", ifelse(p_lrt < 0.05, "TOLAK H0", "GAGAL TOLAK H0"), "\n")
+cat("Kesimpulan:",
+    ifelse(p_lrt < 0.05,
+           "Secara simultan, minimal satu dimensi MCA berpengaruh signifikan\nterhadap loyalitas pengguna ChatGPT.",
+           "Secara simultan, tidak ada dimensi MCA yang berpengaruh signifikan."),
+    "\n")
+```
+
+
+# Uji Parsial (Uji Wald)
+
+Uji parsial menguji pengaruh **masing-masing** dimensi MCA secara individual terhadap Y.
+
+$$H_0: \beta_k = 0 \quad \text{(Dim}_k \text{ tidak berpengaruh)}$$
+$$H_1: \beta_k \neq 0 \quad \text{(Dim}_k \text{ berpengaruh)}$$
+
+```{r uji-parsial}
+# ============================================================
+# UJI WALD PER DIMENSI
+# ============================================================
+pred_rows <- grep("Dim", rownames(coef_all))
+pred_coef <- coef_all[pred_rows, , drop = FALSE]
+
+cat("UJI PARSIAL - UJI WALD PER DIMENSI MCA\n")
+cat(strrep("=", 55), "\n\n")
+
+parsial_df <- data.frame(
+  Dimensi    = rownames(pred_coef),
+  Estimate   = round(pred_coef[, "Estimate"], 4),
+  Std_Error  = round(pred_coef[, "Std. Error"], 4),
+  z_value    = round(pred_coef[, "z value"], 4),
+  p_value    = round(pred_coef[, "Pr(>|z|)"], 4),
+  Keputusan  = ifelse(pred_coef[, "Pr(>|z|)"] < 0.05,
+                      "Tolak H0 (Signifikan)", "Gagal Tolak H0"),
+  stringsAsFactors = FALSE
+)
+
+kable(parsial_df, row.names = FALSE,
+      caption = "Uji Parsial (Wald) - Signifikansi Individual Setiap Dimensi MCA",
+      col.names = c("Dimensi", "B", "Std. Error", "z value", "p-value", "Keputusan")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  footnote(general = "Alpha = 0.05. Uji dua arah.")
+
+# Ringkasan dimensi signifikan
+sig_dims <- parsial_df$Dimensi[pred_coef[, "Pr(>|z|)"] < 0.05]
+cat("\nDimensi yang signifikan secara parsial (p < 0.05):\n")
+if (length(sig_dims) > 0) {
+  cat(paste(" -", sig_dims, collapse = "\n"), "\n")
+} else {
+  cat("  Tidak ada dimensi yang signifikan secara individual.\n")
+}
+```
+
+
+# Uji Kecocokan Model (Hosmer-Lemeshow)
+
+Uji kecocokan model memeriksa apakah model yang dibangun **sesuai dengan data** (goodness of fit).
+
+$$H_0: \text{Model cocok dengan data}$$
+$$H_1: \text{Model tidak cocok dengan data}$$
+
+```{r uji-kecocokan}
+# ============================================================
+# HOSMER-LEMESHOW TEST untuk Ordinal
+# Menggunakan pendekatan residual deviance
+# ============================================================
+
+cat("UJI KECOCOKAN MODEL\n")
+cat(strrep("=", 55), "\n\n")
+
+# Deviance goodness-of-fit
+dev_stat <- model_clm$deviance
+df_dev   <- model_clm$df.residual
+
+cat("Residual Deviance:", round(dev_stat, 4), "\n")
+cat("df residual      :", df_dev, "\n")
+cat("p-value          :", round(pchisq(dev_stat, df_dev, lower.tail = FALSE), 4), "\n\n")
+
+# Perbandingan deviance model vs null
+null_dev  <- model_null$deviance
+dev_diff  <- null_dev - dev_stat
+df_diff   <- n_dim
+p_dev     <- pchisq(dev_diff, df_diff, lower.tail = FALSE)
+
+cat("Deviance Null Model  :", round(null_dev, 4), "\n")
+cat("Deviance Full Model  :", round(dev_stat, 4), "\n")
+cat("Selisih Deviance (G) :", round(dev_diff, 4), "\n")
+cat("df                   :", df_diff, "\n")
+cat("p-value              :", round(p_dev, 4), "\n\n")
+
+cat("Keputusan:", ifelse(p_dev < 0.05, "TOLAK H0", "GAGAL TOLAK H0"), "\n")
+cat("Kesimpulan:",
+    ifelse(p_dev >= 0.05,
+           "Model cocok dengan data (p >= 0.05).",
+           "Model kurang cocok dengan data (p < 0.05)."), "\n")
+```
+
+
+# Uji Kebaikan Model (Pseudo R-Squared)
+
+Pseudo R-squared mengukur seberapa baik model menjelaskan variasi dalam data, analog dengan
+R-squared pada regresi linear namun diinterpretasikan berbeda.
+
+```{r uji-kebaikan}
+# ============================================================
+# PSEUDO R-SQUARED
+# ============================================================
+logLik_null <- as.numeric(logLik(model_null))
+logLik_full <- as.numeric(logLik(model_clm))
+n           <- nrow(df_olr)
+
+mcfadden_r2  <- 1 - (logLik_full / logLik_null)
+cox_snell_r2 <- 1 - exp((2/n) * (logLik_null - logLik_full))
+nagelkerke_r2 <- cox_snell_r2 / (1 - exp((2/n) * logLik_null))
+
+cat("UJI KEBAIKAN MODEL - PSEUDO R-SQUARED\n")
+cat(strrep("=", 55), "\n\n")
+
+r2_df <- data.frame(
+  Ukuran          = c("McFadden R²", "Cox & Snell R²", "Nagelkerke R²"),
+  Nilai           = round(c(mcfadden_r2, cox_snell_r2, nagelkerke_r2), 4),
+  Interpretasi    = c(
+    ifelse(mcfadden_r2 >= 0.2, "Baik (>= 0.2)", "Cukup (< 0.2)"),
+    "Nilai referensi",
+    ifelse(nagelkerke_r2 >= 0.3, "Baik (>= 0.3)",
+           ifelse(nagelkerke_r2 >= 0.2, "Cukup (0.2-0.3)", "Lemah (< 0.2)"))
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(r2_df, row.names = FALSE,
+      caption = "Pseudo R-Squared Model Regresi Logistik Ordinal") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  footnote(general = "Nagelkerke R² digunakan sebagai ukuran utama kebaikan model.")
+
+cat("\nAIC Model Full  :", round(AIC(model_clm), 4), "\n")
+cat("AIC Null Model  :", round(AIC(model_null), 4), "\n")
+cat("BIC Model Full  :", round(BIC(model_clm), 4), "\n")
+cat("BIC Null Model  :", round(BIC(model_null), 4), "\n\n")
+cat("Kesimpulan: Model menjelaskan", round(nagelkerke_r2 * 100, 1),
+    "% variasi dalam loyalitas (Nagelkerke R²).\n")
+```
+
+
+# Uji Asumsi Proportional Odds
+
+Asumsi proportional odds (parallel regression assumption) mensyaratkan bahwa koefisien
+regresi **sama** untuk setiap threshold cut-point.
+
+$$H_0: \text{Asumsi proportional odds terpenuhi}$$
+$$H_1: \text{Asumsi proportional odds tidak terpenuhi}$$
+
+```{r uji-po}
+# ============================================================
+# NOMINAL TEST (Proportional Odds Assumption)
+# dari package ordinal
+# ============================================================
+nominal_res <- nominal_test(model_clm)
+
+cat("UJI PROPORTIONAL ODDS - NOMINAL TEST\n")
+cat(strrep("=", 55), "\n\n")
+cat("H0: Koefisien sama untuk setiap cut-point (asumsi PO terpenuhi)\n")
+cat("H1: Koefisien berbeda antar cut-point\n\n")
+print(nominal_res)
+
+# Cek apakah ada yang signifikan
+p_nominal <- nominal_res$`Pr(>Chisq)`
+p_nominal <- p_nominal[!is.na(p_nominal)]
+melanggar <- names(p_nominal)[p_nominal < 0.05]
+
+cat("\n\nKesimpulan:\n")
+if (length(melanggar) == 0 || all(melanggar == "")) {
+  cat("Tidak ada dimensi yang melanggar asumsi proportional odds (p > 0.05).\n")
+  cat("Asumsi TERPENUHI - model proportional odds layak digunakan.\n")
+} else {
+  cat("Dimensi yang berpotensi melanggar asumsi:", paste(melanggar, collapse = ", "), "\n")
+  cat("Jika pelanggaran minor, model masih dapat digunakan.\n")
+  cat("Alternatif: gunakan Partial Proportional Odds Model (clm dengan nominal=~DimX).\n")
+}
+
+cat("\n\n")
+# SCALE TEST
+scale_res <- scale_test(model_clm)
+cat("UJI SCALE (Homogenitas Varians)\n")
+cat(strrep("=", 55), "\n\n")
+print(scale_res)
+```
+
+
+# Odds Ratio dan Interpretasi
+
+Odds Ratio (OR) diperoleh dari eksponensial koefisien regresi ($e^{\hat{\beta}_k}$).
+OR > 1 berarti dimensi tersebut meningkatkan peluang berada di kategori loyalitas yang lebih tinggi,
+sedangkan OR < 1 berarti sebaliknya.
+
+```{r odds-ratio}
+# ============================================================
+# ODDS RATIO + CI 95%
+# ============================================================
+coef_pred_val <- coef(model_clm)   # hanya prediktor (bukan threshold)
+or_vals       <- exp(coef_pred_val)
+ci_vals       <- exp(confint(model_clm))
+
+or_df <- data.frame(
+  Dimensi    = names(coef_pred_val),
+  B          = round(coef_pred_val, 4),
+  OR         = round(or_vals, 4),
+  CI_Lower   = round(ci_vals[, 1], 4),
+  CI_Upper   = round(ci_vals[, 2], 4),
+  Arah       = ifelse(or_vals > 1, "↑ Meningkatkan peluang Y lebih tinggi",
+                      "↓ Menurunkan peluang Y lebih tinggi"),
+  stringsAsFactors = FALSE
+)
+
+kable(or_df, row.names = FALSE,
+      caption = "Odds Ratio dan Confidence Interval 95%",
+      col.names = c("Dimensi", "Koefisien (B)", "Odds Ratio (OR)",
+                    "CI 95% Lower", "CI 95% Upper", "Arah Pengaruh")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+# Visualisasi OR
+ggplot(or_df, aes(x = reorder(Dimensi, OR), y = OR, color = OR > 1)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper), width = 0.2, linewidth = 0.8) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
+  coord_flip() +
+  scale_color_manual(values = c("TRUE" = "#2ecc71", "FALSE" = "#e74c3c"),
+                     labels = c("TRUE" = "OR > 1 (Positif)", "FALSE" = "OR < 1 (Negatif)")) +
+  labs(title = "Odds Ratio dengan Confidence Interval 95%",
+       x = "Dimensi MCA", y = "Odds Ratio",
+       color = "Arah Pengaruh") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+```{r interpretasi-or, results='asis'}
+cat("### Interpretasi Odds Ratio\n\n")
+for (i in seq_len(nrow(or_df))) {
+  b     <- or_df$B[i]
+  or_v  <- or_df$OR[i]
+  dim_n <- or_df$Dimensi[i]
+  pct   <- abs(round((or_v - 1) * 100, 1))
+  arah  <- ifelse(or_v > 1, "meningkatkan", "menurunkan")
+
+  cat(paste0("- **", dim_n, "** (OR = ", or_v, "): Setiap peningkatan satu unit skor pada ",
+             dim_n, " akan ", arah, " kecenderungan responden berada pada kategori loyalitas ",
+             "lebih tinggi sebesar **", pct, "%**, dengan asumsi dimensi lain tetap.\n\n"))
+}
+```
+
+
+# Prediksi Probabilitas
+
+Prediksi probabilitas menunjukkan estimasi peluang setiap responden masuk ke masing-masing
+kategori loyalitas (Rendah, Sedang, Tinggi).
+
+```{r prediksi-probabilitas}
+# ============================================================
+# PREDIKSI PROBABILITAS
+# ============================================================
+pred_prob  <- predict(model_clm, type = "prob")$fit
+pred_class <- predict(model_clm, type = "class")$fit
+
+cat("PREDIKSI PROBABILITAS (10 observasi pertama)\n")
+cat(strrep("=", 55), "\n\n")
+
+prob_table <- as.data.frame(round(pred_prob[1:10, ], 4))
+prob_table$Y_Aktual   <- as.character(df_olr$Y[1:10])
+prob_table$Y_Prediksi <- pred_class[1:10]
+prob_table$Benar      <- ifelse(prob_table$Y_Aktual == prob_table$Y_Prediksi, "✓", "✗")
+
+kable(prob_table, row.names = FALSE,
+      caption = "Probabilitas Prediksi per Kategori Loyalitas (10 Observasi Pertama)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  footnote(general = "Prediksi didasarkan pada probabilitas terbesar.")
+
+# Distribusi probabilitas rata-rata per kategori aktual
+cat("\n\nRata-rata probabilitas prediksi per kategori aktual:\n\n")
+prob_df <- as.data.frame(pred_prob)
+prob_df$Y_Aktual <- df_olr$Y
+
+avg_prob <- prob_df %>%
+  group_by(Y_Aktual) %>%
+  summarise(
+    P_Rendah = round(mean(Rendah), 4),
+    P_Sedang = round(mean(Sedang), 4),
+    P_Tinggi = round(mean(Tinggi), 4)
+  )
+
+kable(avg_prob, row.names = FALSE,
+      caption = "Rata-rata Probabilitas Prediksi per Kelompok Loyalitas Aktual") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r visualisasi-prob, fig.height=6, fig.width=10}
+# Visualisasi probabilitas prediksi
+prob_long <- as.data.frame(pred_prob)
+prob_long$ID      <- 1:nrow(prob_long)
+prob_long$Y_Aktual <- df_olr$Y
+
+prob_melt <- tidyr::pivot_longer(prob_long,
+                                  cols = c("Rendah", "Sedang", "Tinggi"),
+                                  names_to = "Kategori", values_to = "Probabilitas")
+prob_melt$Kategori <- factor(prob_melt$Kategori,
+                              levels = c("Rendah", "Sedang", "Tinggi"))
+
+ggplot(prob_melt, aes(x = ID, y = Probabilitas, fill = Kategori)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ Y_Aktual, labeller = label_both) +
+  scale_fill_brewer(palette = "RdYlGn") +
+  labs(title = "Distribusi Probabilitas Prediksi per Kategori Loyalitas Aktual",
+       x = "Responden", y = "Probabilitas", fill = "Prediksi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+
+# Klasifikasi Model
+
+Evaluasi kemampuan model dalam mengklasifikasikan responden ke kategori loyalitas yang benar
+menggunakan **confusion matrix** dan metrik turunannya.
+
+```{r klasifikasi}
+# ============================================================
+# CONFUSION MATRIX DAN METRIK KLASIFIKASI
+# ============================================================
+conf_matrix <- table(Aktual = df_olr$Y, Prediksi = pred_class)
+
+cat("CONFUSION MATRIX\n")
+cat(strrep("=", 55), "\n\n")
+print(conf_matrix)
+
+# Akurasi keseluruhan
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+cat("\n\nAkurasi Keseluruhan:", round(accuracy * 100, 2), "%\n\n")
+
+# Metrik per kelas
+cat("Metrik per Kelas:\n\n")
+metrik_df <- data.frame(
+  Kelas      = levels(df_olr$Y),
+  TP         = numeric(3),
+  FP         = numeric(3),
+  FN         = numeric(3),
+  TN         = numeric(3),
+  Precision  = numeric(3),
+  Recall     = numeric(3),
+  F1_Score   = numeric(3),
+  stringsAsFactors = FALSE
+)
+
+for (i in seq_along(levels(df_olr$Y))) {
+  kelas  <- levels(df_olr$Y)[i]
+  TP     <- conf_matrix[kelas, kelas]
+  FP     <- sum(conf_matrix[, kelas]) - TP
+  FN     <- sum(conf_matrix[kelas, ]) - TP
+  TN     <- sum(conf_matrix) - TP - FP - FN
+  prec   <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+  rec    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+  f1     <- ifelse((prec + rec) == 0, 0, 2 * prec * rec / (prec + rec))
+  metrik_df[i, 2:8] <- round(c(TP, FP, FN, TN, prec, rec, f1), 4)
+}
+
+kable(metrik_df, row.names = FALSE,
+      caption = "Metrik Klasifikasi per Kategori Loyalitas") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  footnote(general = paste("Akurasi keseluruhan:", round(accuracy * 100, 2), "%"))
+```
+
+```{r heatmap-confusion, fig.height=5, fig.width=7}
+# Heatmap Confusion Matrix
+conf_df <- as.data.frame(conf_matrix)
+names(conf_df) <- c("Aktual", "Prediksi", "Frekuensi")
+
+ggplot(conf_df, aes(x = Prediksi, y = Aktual, fill = Frekuensi)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  geom_text(aes(label = Frekuensi), size = 6, fontface = "bold") +
+  scale_fill_gradient(low = "#f8f9fa", high = "#2c7fb8") +
+  labs(title = "Confusion Matrix - Regresi Logistik Ordinal",
+       subtitle = paste("Akurasi:", round(accuracy * 100, 2), "%"),
+       x = "Prediksi", y = "Aktual") +
+  theme_minimal() +
+  theme(plot.title    = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right")
+```
+
+
+# Ringkasan Hasil
+
+```{r ringkasan-final}
+cat(strrep("=", 60), "\n")
+cat("RINGKASAN REGRESI LOGISTIK ORDINAL\n")
+cat(strrep("=", 60), "\n\n")
+
+cat("MODEL:\n")
+cat("  Variabel dependen : Y (Loyalitas: Rendah < Sedang < Tinggi)\n")
+cat("  Prediktor         : Skor 7 Dimensi MCA (Kriteria Kaiser)\n")
+cat("  Link function     : Logit (Proportional Odds)\n")
+cat("  Estimasi          : Maximum Likelihood\n\n")
+
+cat("UJI SIMULTAN (Likelihood Ratio Test):\n")
+cat(sprintf("  G statistic : %.4f\n", G_stat))
+cat(sprintf("  df          : %d\n", df_lrt))
+cat(sprintf("  p-value     : %.6f\n", p_lrt))
+cat("  Keputusan   :", ifelse(p_lrt < 0.05, "Tolak H0 - Model SIGNIFIKAN\n\n",
+                              "Gagal Tolak H0 - Model tidak signifikan\n\n"))
+
+cat("UJI PARSIAL (Uji Wald) - Dimensi Signifikan:\n")
+if (length(sig_dims) > 0) {
+  cat("  ", paste(sig_dims, collapse = ", "), "\n\n")
+} else {
+  cat("  Tidak ada dimensi signifikan secara individual\n\n")
+}
+
+cat("KEBAIKAN MODEL:\n")
+cat(sprintf("  McFadden R²   : %.4f\n", mcfadden_r2))
+cat(sprintf("  Nagelkerke R² : %.4f (%.1f%% variasi explained)\n",
+            nagelkerke_r2, nagelkerke_r2 * 100))
+cat(sprintf("  AIC           : %.4f\n", AIC(model_clm)))
+cat(sprintf("  BIC           : %.4f\n\n", BIC(model_clm)))
+
+cat("KLASIFIKASI:\n")
+cat(sprintf("  Akurasi keseluruhan : %.2f%%\n\n", accuracy * 100))
+
+cat("ASUMSI:\n")
+cat("  Non-multikolinearitas : TERPENUHI (dimensi MCA ortogonal)\n")
+cat("  Proportional odds     : Lihat hasil nominal_test\n")
+```
+
+---
+
+*Dokumen ini merupakan bagian dari analisis: MCA → Regresi Logistik Ordinal untuk memodelkan loyalitas pengguna ChatGPT.*

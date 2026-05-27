@@ -1,0 +1,1077 @@
+---
+title: "Multiple Correspondence Analysis (MCA) - Loyalitas Pengguna ChatGPT"
+author: "Analisis MCA"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 8,
+  fig.align = "center"
+)
+```
+
+# Pendahuluan
+
+Dokumen ini melakukan **Multiple Correspondence Analysis (MCA)** pada data survei loyalitas pengguna ChatGPT. Analisis mencakup:
+
+1. Pre-processing data (pembersihan, pengkodean, kategorisasi)
+2. Karakteristik responden (statistik deskriptif)
+3. MCA lengkap (eigenvalues, kontribusi variabel, visualisasi biplot)
+4. Ekstraksi dimensi MCA untuk digunakan dalam Regresi Logistik Ordinal
+
+# Load Packages
+
+```{r load-packages}
+# Install packages jika belum ada
+required_packages <- c("FactoMineR", "factoextra", "dplyr", "tidyr",
+                       "ggplot2", "knitr", "kableExtra", "summarytools",
+                       "corrplot", "gridExtra", "RColorBrewer")
+
+new_packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
+if(length(new_packages)) install.packages(new_packages, repos = "https://cran.r-project.org")
+
+library(FactoMineR)
+library(factoextra)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(summarytools)
+library(corrplot)
+library(gridExtra)
+library(RColorBrewer)
+```
+
+
+
+# Import dan Pre-Processing Data
+
+## Import Data
+
+```{r import-data}
+# Import data
+df_raw <- read.csv("data_mca.csv", header = TRUE, na.strings = c("", "NA", "Lainn1"))
+
+# Tampilkan dimensi data
+cat("Dimensi data:", nrow(df_raw), "baris x", ncol(df_raw), "kolom\n")
+cat("\nNama kolom:\n")
+print(names(df_raw))
+
+# Tampilkan beberapa baris pertama
+kable(head(df_raw, 10), caption = "10 Baris Pertama Data Mentah") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) %>%
+  scroll_box(width = "100%")
+```
+
+## Cek Missing Values
+
+```{r missing-values}
+# Hitung missing values per kolom
+missing_summary <- data.frame(
+  Variabel = names(df_raw),
+  Jumlah_NA = colSums(is.na(df_raw)),
+  Persentase_NA = round(colSums(is.na(df_raw)) / nrow(df_raw) * 100, 2)
+)
+
+kable(missing_summary[missing_summary$Jumlah_NA > 0, ],
+      caption = "Variabel dengan Missing Values",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+cat("\nTotal missing values:", sum(is.na(df_raw)), "\n")
+```
+
+
+
+## Kategorisasi Variabel Komposit
+
+Berdasarkan kode buku (codebook), variabel komposit dihitung dari skor total item-item penyusunnya kemudian dikategorikan menggunakan **rumus interval kelas tetap**:
+
+$$\text{Interval} = \frac{\text{Skor Maksimum} - \text{Skor Minimum}}{3}$$
+
+| Variabel | Item | Min | Max | Interval | Rendah | Sedang | Tinggi |
+|----------|-----:|----:|----:|---------:|--------|--------|--------|
+| Y (Loyalitas) | 6 | 6 | 24 | 6 | 6-12 | 13-18 | 19-24 |
+| X6 (Multi-Platform AI) | 4 | 4 | 16 | 4 | 4-8 | 9-12 | 13-16 |
+| X7 (Intensitas Penggunaan) | 3 | 3 | 12 | 3 | 3-6 | 7-9 | 10-12 |
+| X8 (Keinginan Berlangganan) | 3 | 3 | 12 | 3 | 3-6 | 7-9 | 10-12 |
+| X9 (Sensitivitas Harga) | 2 | 2 | 8 | 2 | 2-4 | 5-6 | 7-8 |
+
+```{r kategorisasi}
+# ============================================================
+# VARIABEL DEPENDEN: Y (Loyalitas) dari L1-L6
+# Interval = (24 - 6) / 3 = 6
+# Rendah: 6-12, Sedang: 13-18, Tinggi: 19-24
+# ============================================================
+df <- df_raw
+
+# Hitung skor total Loyalitas (L1-L6)
+df$Y_skor <- rowSums(df[, c("L1","L2","L3","L4","L5","L6")], na.rm = TRUE)
+
+cat("Statistik skor Loyalitas (L1-L6):\n")
+cat("Min:", min(df$Y_skor, na.rm=TRUE), "| Max:", max(df$Y_skor, na.rm=TRUE),
+    "| Mean:", round(mean(df$Y_skor, na.rm=TRUE),2), "\n")
+cat("Interval kelas: (24 - 6) / 3 = 6\n")
+cat("Rendah: 6-12 | Sedang: 13-18 | Tinggi: 19-24\n")
+
+df$Y <- cut(df$Y_skor,
+            breaks = c(5, 12, 18, 24),  # 6-12, 13-18, 19-24
+            labels = c("1", "2", "3"),   # 1=Rendah, 2=Sedang, 3=Tinggi
+            include.lowest = TRUE)
+
+cat("\nDistribusi Y:\n")
+print(table(df$Y, useNA = "ifany"))
+
+# ============================================================
+# X6: Multi-Platform AI dari M1-M4
+# Interval = (16 - 4) / 3 = 4
+# Rendah: 4-8, Sedang: 9-12, Tinggi: 13-16
+# ============================================================
+df$X6_skor <- rowSums(df[, c("M1","M2","M3","M4")], na.rm = TRUE)
+cat("\nStatistik skor Multi-Platform AI (M1-M4):\n")
+cat("Min:", min(df$X6_skor, na.rm=TRUE), "| Max:", max(df$X6_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (16 - 4) / 3 = 4\n")
+cat("Rendah: 4-8 | Sedang: 9-12 | Tinggi: 13-16\n")
+
+df$X6 <- cut(df$X6_skor,
+             breaks = c(3, 8, 12, 16),  # 4-8, 9-12, 13-16
+             labels = c("1", "2", "3"),
+             include.lowest = TRUE)
+
+cat("\nDistribusi X6:\n")
+print(table(df$X6, useNA = "ifany"))
+
+# ============================================================
+# X7: Intensitas Penggunaan dari I2-I4
+# Interval = (12 - 3) / 3 = 3
+# Rendah: 3-6, Sedang: 7-9, Tinggi: 10-12
+# ============================================================
+df$X7_skor <- rowSums(df[, c("I2","I3","I4")], na.rm = TRUE)
+cat("\nStatistik skor Intensitas Penggunaan (I2-I4):\n")
+cat("Min:", min(df$X7_skor, na.rm=TRUE), "| Max:", max(df$X7_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (12 - 3) / 3 = 3\n")
+cat("Rendah: 3-6 | Sedang: 7-9 | Tinggi: 10-12\n")
+
+df$X7 <- cut(df$X7_skor,
+             breaks = c(2, 6, 9, 12),  # 3-6, 7-9, 10-12
+             labels = c("1", "2", "3"),
+             include.lowest = TRUE)
+
+cat("\nDistribusi X7:\n")
+print(table(df$X7, useNA = "ifany"))
+
+# ============================================================
+# X8: Keinginan Berlangganan dari W1-W3
+# Interval = (12 - 3) / 3 = 3
+# Rendah: 3-6, Sedang: 7-9, Tinggi: 10-12
+# ============================================================
+df$X8_skor <- rowSums(df[, c("W1","W2","W3")], na.rm = TRUE)
+cat("\nStatistik skor Keinginan Berlangganan (W1-W3):\n")
+cat("Min:", min(df$X8_skor, na.rm=TRUE), "| Max:", max(df$X8_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (12 - 3) / 3 = 3\n")
+cat("Rendah: 3-6 | Sedang: 7-9 | Tinggi: 10-12\n")
+
+df$X8 <- cut(df$X8_skor,
+             breaks = c(2, 6, 9, 12),  # 3-6, 7-9, 10-12
+             labels = c("1", "2", "3"),
+             include.lowest = TRUE)
+
+cat("\nDistribusi X8:\n")
+print(table(df$X8, useNA = "ifany"))
+
+# ============================================================
+# X9: Sensitivitas Harga dari H1-H2
+# Interval = (8 - 2) / 3 = 2
+# Rendah: 2-4, Sedang: 5-6, Tinggi: 7-8
+# ============================================================
+df$X9_skor <- rowSums(df[, c("H1","H2")], na.rm = TRUE)
+cat("\nStatistik skor Sensitivitas Harga (H1-H2):\n")
+cat("Min:", min(df$X9_skor, na.rm=TRUE), "| Max:", max(df$X9_skor, na.rm=TRUE), "\n")
+cat("Interval kelas: (8 - 2) / 3 = 2\n")
+cat("Rendah: 2-4 | Sedang: 5-6 | Tinggi: 7-8\n")
+
+df$X9 <- cut(df$X9_skor,
+             breaks = c(1, 4, 6, 8),  # 2-4, 5-6, 7-8
+             labels = c("1", "2", "3"),
+             include.lowest = TRUE)
+
+cat("\nDistribusi X9:\n")
+print(table(df$X9, useNA = "ifany"))
+```
+
+
+
+## Penyiapan Variabel untuk MCA
+
+```{r prepare-mca-vars}
+# ============================================================
+# Konversi semua variabel ke factor dengan label sesuai codebook
+# ============================================================
+
+# X1: Departemen (Nominal)
+df$X1 <- factor(df$X1, levels = c(1,2,3),
+                labels = c("Teknik", "Bisnis", "Kesehatan"))
+
+# X2: Angkatan (Nominal)
+df$X2 <- factor(df$X2, levels = c(1,2,3),
+                labels = c("2023", "2024", "2025"))
+
+# X3: Pengeluaran per Bulan (Ordinal)
+df$X3 <- factor(df$X3, levels = c(1,2,3),
+                labels = c("<1jt", "1-2jt", ">2jt"), ordered = TRUE)
+
+# X5: Jenis Akses ChatGPT (Nominal)
+df$X5 <- factor(df$X5, levels = c(1,2,3),
+                labels = c("Free", "Sharing", "Berbayar"))
+
+# X6: Multi-Platform AI (Ordinal) - sudah dikategorikan
+df$X6 <- factor(df$X6, levels = c(1,2,3),
+                labels = c("Rendah", "Sedang", "Tinggi"), ordered = TRUE)
+
+# X7: Intensitas Penggunaan (Ordinal)
+df$X7 <- factor(df$X7, levels = c(1,2,3),
+                labels = c("Rendah", "Sedang", "Tinggi"), ordered = TRUE)
+
+# X8: Keinginan Berlangganan (Ordinal)
+df$X8 <- factor(df$X8, levels = c(1,2,3),
+                labels = c("Rendah", "Sedang", "Tinggi"), ordered = TRUE)
+
+# X9: Sensitivitas Harga (Ordinal)
+df$X9 <- factor(df$X9, levels = c(1,2,3),
+                labels = c("Rendah", "Sedang", "Tinggi"), ordered = TRUE)
+
+# X10: Tujuan Utama Penggunaan (Ordinal)
+df$X10 <- factor(df$X10, levels = c(1,2,3,4),
+                 labels = c("Akademik", "Kreativitas", "Coding", "Lainnya"))
+
+# X11a: Pernah Berlangganan Plus/Pro (Nominal)
+df$X11a <- factor(df$X11a, levels = c(1,2),
+                  labels = c("Ya", "Tidak"))
+
+# X11b: Jenis Berlangganan (Nominal) - hanya jika X11a = Ya
+df$X11b <- factor(df$X11b, levels = c(1,2,3,4),
+                  labels = c("Sharing", "ShopeeVIP", "Pelajar", "Lainnya"))
+
+# X12a: Pernah Memakai Akun Sharing (Nominal)
+# Perhatikan: di data, 1 = Ya dan 2 = Tidak (sesuai codebook 0=Tidak, 1=Ya)
+# Tapi di data terlihat nilainya 1 dan 2, jadi kita sesuaikan
+df$X12a <- factor(df$X12a, levels = c(1,2),
+                  labels = c("Ya", "Tidak"))
+
+# X12b: Perilaku Akun Sharing (Ordinal) - hanya jika X12a = Ya
+df$X12b <- factor(df$X12b, levels = c(0,1,2,3,4),
+                  labels = c("TdkPernah", "Rendah", "Sedang", "Tinggi", "SgtTinggi"))
+
+# X12c: Beralih ke Premium Pribadi (Ordinal) - hanya jika X12a = Ya
+df$X12c <- factor(df$X12c, levels = c(1,2),
+                  labels = c("Ya", "Tidak"))
+
+# Y: Loyalitas (Ordinal - variabel dependen)
+df$Y <- factor(df$Y, levels = c("1","2","3"),
+               labels = c("Rendah", "Sedang", "Tinggi"), ordered = TRUE)
+
+cat("Variabel Y (Loyalitas):\n")
+print(table(df$Y, useNA = "ifany"))
+```
+
+
+
+## Seleksi Variabel untuk MCA
+
+```{r select-vars}
+# ============================================================
+# Pilih variabel yang akan digunakan dalam MCA
+# Variabel aktif: X1, X2, X3, X5, X6, X7, X8, X9, X10, X11a, X12a
+# Variabel supplementary: Y (akan diproyeksikan)
+# X4 (rasio) tidak dimasukkan langsung ke MCA, bisa dijadikan supplementary kuantitatif
+# X11b, X12b, X12c memiliki banyak NA (conditional), tidak dimasukkan ke MCA utama
+# ============================================================
+
+# Variabel aktif untuk MCA
+vars_active <- c("X1", "X2", "X3", "X5", "X6", "X7", "X8", "X9", "X10", "X11a", "X12a")
+
+# Mapping kode variabel ke nama asli
+nama_var <- c(
+  X1 = "Departemen", X2 = "Angkatan", X3 = "Pengeluaran per Bulan",
+  X5 = "Jenis Akses ChatGPT", X6 = "Multi-Platform AI",
+  X7 = "Intensitas Penggunaan", X8 = "Keinginan Berlangganan",
+  X9 = "Sensitivitas Harga", X10 = "Tujuan Utama Penggunaan",
+  X11a = "Pernah Berlangganan Plus/Pro", X12a = "Pernah Pakai Akun Sharing"
+)
+
+# Variabel supplementary kualitatif
+vars_sup_quali <- c("Y")
+
+# Variabel supplementary kuantitatif
+vars_sup_quanti <- c("X4")
+
+# Buat dataset MCA
+df_mca <- df[, c(vars_active, vars_sup_quali, "X4")]
+
+# Cek missing values pada variabel aktif
+cat("Missing values pada variabel aktif MCA:\n")
+print(colSums(is.na(df_mca[, vars_active])))
+
+# Hapus baris dengan NA pada variabel aktif
+df_mca_complete <- df_mca[complete.cases(df_mca[, vars_active]), ]
+cat("\nJumlah observasi setelah penghapusan NA:", nrow(df_mca_complete), "\n")
+cat("Jumlah observasi yang dihapus:", nrow(df_mca) - nrow(df_mca_complete), "\n")
+
+# Pastikan X4 numerik
+df_mca_complete$X4 <- as.numeric(as.character(df_mca_complete$X4))
+```
+
+
+
+# Karakteristik Responden (Statistik Deskriptif)
+
+## Distribusi Frekuensi Variabel
+
+```{r deskriptif-frekuensi}
+# Tabel frekuensi untuk setiap variabel
+cat("="*60, "\n")
+cat("DISTRIBUSI FREKUENSI VARIABEL\n")
+cat("="*60, "\n\n")
+
+for(var in vars_active) {
+  cat(paste0("\n--- ", nama_var[var], " (", var, ") ---\n"))
+  tbl <- table(df_mca_complete[[var]], useNA = "ifany")
+  tbl_pct <- round(prop.table(tbl) * 100, 1)
+  result <- data.frame(Kategori = names(tbl), Frekuensi = as.numeric(tbl),
+                       Persentase = as.numeric(tbl_pct))
+  print(kable(result, row.names = FALSE))
+  cat("\n")
+}
+```
+
+## Visualisasi Distribusi
+
+```{r plot-distribusi, fig.height=12, fig.width=12}
+# Bar plot untuk semua variabel aktif
+plot_list <- list()
+
+for(i in seq_along(vars_active)) {
+  var <- vars_active[i]
+  p <- ggplot(df_mca_complete, aes(x = .data[[var]])) +
+    geom_bar(fill = brewer.pal(3, "Set2")[1], color = "black", alpha = 0.8) +
+    geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3) +
+    labs(title = paste0(nama_var[var], " (", var, ")"), x = "", y = "Frekuensi") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          plot.title = element_text(face = "bold", size = 10))
+  plot_list[[i]] <- p
+}
+
+# Tampilkan grid
+do.call(gridExtra::grid.arrange, c(plot_list, ncol = 3))
+```
+
+## Karakteristik X4 (Jumlah Platform AI yang Digunakan)
+
+```{r deskriptif-X4, fig.height=6, fig.width=10}
+# Statistik deskriptif X4
+cat("Statistik Deskriptif X4 (Jumlah Platform AI yang Digunakan):\n")
+cat("="*50, "\n")
+cat("N:", sum(!is.na(df_mca_complete$X4)), "\n")
+cat("Min:", min(df_mca_complete$X4, na.rm=TRUE), "\n")
+cat("Max:", max(df_mca_complete$X4, na.rm=TRUE), "\n")
+cat("Mean:", round(mean(df_mca_complete$X4, na.rm=TRUE), 2), "\n")
+cat("Median:", median(df_mca_complete$X4, na.rm=TRUE), "\n")
+cat("SD:", round(sd(df_mca_complete$X4, na.rm=TRUE), 2), "\n")
+
+# Boxplot X4 keseluruhan
+p_box1 <- ggplot(df_mca_complete, aes(y = X4)) +
+  geom_boxplot(fill = "#69b3a2", color = "black", alpha = 0.7, width = 0.4) +
+  geom_jitter(width = 0.1, alpha = 0.3, size = 1.5, color = "darkblue") +
+  labs(title = "Boxplot X4 - Jumlah Platform AI yang Digunakan",
+       y = "Jumlah Platform AI", x = "") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+# Boxplot X4 berdasarkan Y (Loyalitas)
+p_box2 <- ggplot(df_mca_complete, aes(x = Y, y = X4, fill = Y)) +
+  geom_boxplot(color = "black", alpha = 0.7, outlier.shape = 21) +
+  geom_jitter(width = 0.15, alpha = 0.3, size = 1.5) +
+  scale_fill_brewer(palette = "RdYlGn") +
+  labs(title = "Boxplot X4 berdasarkan Loyalitas (Y)",
+       x = "Kategori Loyalitas", y = "Jumlah Platform AI") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5))
+
+grid.arrange(p_box1, p_box2, ncol = 2)
+```
+
+```{r boxplot-X4-detail, fig.height=10, fig.width=12}
+# Boxplot X4 berdasarkan variabel demografis
+p_x4_x1 <- ggplot(df_mca_complete, aes(x = X1, y = X4, fill = X1)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Jumlah Platform AI vs Departemen", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+p_x4_x2 <- ggplot(df_mca_complete, aes(x = X2, y = X4, fill = X2)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Jumlah Platform AI vs Angkatan", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+p_x4_x5 <- ggplot(df_mca_complete, aes(x = X5, y = X4, fill = X5)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Jumlah Platform AI vs Jenis Akses ChatGPT", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+p_x4_x11a <- ggplot(df_mca_complete, aes(x = X11a, y = X4, fill = X11a)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Jumlah Platform AI vs Pernah Berlangganan", x = "", y = "Jumlah Platform AI") +
+  theme_minimal() + theme(legend.position = "none")
+
+grid.arrange(p_x4_x1, p_x4_x2, p_x4_x5, p_x4_x11a, ncol = 2)
+```
+
+## Karakteristik Variabel Conditional (X11b, X12b, X12c)
+
+Variabel ini hanya diisi oleh responden yang memenuhi kondisi tertentu:
+
+- **X11b (Jenis Berlangganan)**: hanya jika X11a = Ya (pernah berlangganan)
+- **X12b (Perilaku Akun Sharing)**: hanya jika X12a = Ya (pernah pakai sharing)
+- **X12c (Beralih ke Premium Pribadi)**: hanya jika X12a = Ya
+
+```{r viz-conditional, fig.height=8, fig.width=12}
+# X11b - Jenis Berlangganan
+df_x11b <- df[!is.na(df$X11b), ]
+p_x11b <- ggplot(df_x11b, aes(x = X11b)) +
+  geom_bar(fill = "#8da0cb", color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+  labs(title = "Jenis Berlangganan (X11b)",
+       subtitle = paste0("n = ", nrow(df_x11b), " (hanya yang pernah berlangganan)"),
+       x = "", y = "Frekuensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text.x = element_text(angle = 30, hjust = 1))
+
+# X12b - Perilaku Akun Sharing
+df_x12b <- df[!is.na(df$X12b), ]
+p_x12b <- ggplot(df_x12b, aes(x = X12b)) +
+  geom_bar(fill = "#fc8d62", color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+  labs(title = "Perilaku Akun Sharing (X12b)",
+       subtitle = paste0("n = ", nrow(df_x12b), " (hanya yang pernah pakai sharing)"),
+       x = "", y = "Frekuensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text.x = element_text(angle = 30, hjust = 1))
+
+# X12c - Beralih ke Premium Pribadi
+df_x12c <- df[!is.na(df$X12c), ]
+p_x12c <- ggplot(df_x12c, aes(x = X12c)) +
+  geom_bar(fill = "#66c2a5", color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+  labs(title = "Beralih ke Premium Pribadi (X12c)",
+       subtitle = paste0("n = ", nrow(df_x12c), " (hanya yang pernah pakai sharing)"),
+       x = "", y = "Frekuensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+grid.arrange(p_x11b, p_x12b, p_x12c, ncol = 2)
+```
+
+```{r tabel-conditional}
+cat("DISTRIBUSI VARIABEL CONDITIONAL\n")
+cat(strrep("=", 50), "\n")
+
+cat("\n--- Jenis Berlangganan / X11b (n =", nrow(df_x11b), ") ---\n")
+tbl_x11b <- table(df_x11b$X11b)
+print(data.frame(Kategori = names(tbl_x11b),
+                 Frekuensi = as.numeric(tbl_x11b),
+                 Persen = round(prop.table(tbl_x11b) * 100, 1)))
+
+cat("\n--- Perilaku Akun Sharing / X12b (n =", nrow(df_x12b), ") ---\n")
+tbl_x12b <- table(df_x12b$X12b)
+print(data.frame(Kategori = names(tbl_x12b),
+                 Frekuensi = as.numeric(tbl_x12b),
+                 Persen = round(prop.table(tbl_x12b) * 100, 1)))
+
+cat("\n--- Beralih ke Premium / X12c (n =", nrow(df_x12c), ") ---\n")
+tbl_x12c <- table(df_x12c$X12c)
+print(data.frame(Kategori = names(tbl_x12c),
+                 Frekuensi = as.numeric(tbl_x12c),
+                 Persen = round(prop.table(tbl_x12c) * 100, 1)))
+```
+
+## Distribusi Variabel Dependen (Y - Loyalitas)
+
+```{r deskriptif-Y}
+cat("\nDistribusi Variabel Dependen Y (Loyalitas):\n")
+tbl_Y <- table(df_mca_complete$Y, useNA = "ifany")
+tbl_Y_pct <- round(prop.table(tbl_Y) * 100, 1)
+
+result_Y <- data.frame(
+  Kategori = names(tbl_Y),
+  Frekuensi = as.numeric(tbl_Y),
+  Persentase = paste0(as.numeric(tbl_Y_pct), "%")
+)
+
+kable(result_Y, caption = "Distribusi Loyalitas Pengguna ChatGPT",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+# Plot Y
+ggplot(df_mca_complete, aes(x = Y, fill = Y)) +
+  geom_bar(color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = paste0(after_stat(count), "\n(",
+            round(after_stat(count)/sum(after_stat(count))*100, 1), "%)")),
+            vjust = -0.3, size = 3.5) +
+  scale_fill_brewer(palette = "RdYlGn") +
+  labs(title = "Distribusi Loyalitas Pengguna ChatGPT (Y)",
+       x = "Kategori Loyalitas", y = "Frekuensi") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+## Cross-Tabulation Y dengan Variabel Aktif
+
+```{r crosstab}
+# Cross-tabulation Y dengan setiap variabel
+for(var in vars_active) {
+  cat(paste0("\n--- Cross-tab: Loyalitas vs ", nama_var[var], " (", var, ") ---\n"))
+  ct <- table(df_mca_complete$Y, df_mca_complete[[var]])
+  print(ct)
+  cat("\nRow proportions (%):\n")
+  print(round(prop.table(ct, 1) * 100, 1))
+  cat("\n")
+}
+```
+
+
+
+# Multiple Correspondence Analysis (MCA)
+
+## Pelaksanaan MCA
+
+```{r run-mca}
+# ============================================================
+# Jalankan MCA menggunakan FactoMineR
+# Variabel aktif: X1, X2, X3, X5, X6, X7, X8, X9, X10, X11a, X12a
+# Variabel supplementary kualitatif: Y
+# Variabel supplementary kuantitatif: X4
+# ============================================================
+
+# Identifikasi indeks kolom
+col_active <- which(names(df_mca_complete) %in% vars_active)
+col_sup_quali <- which(names(df_mca_complete) %in% vars_sup_quali)
+col_sup_quanti <- which(names(df_mca_complete) == "X4")
+
+cat("Kolom aktif (indeks):", col_active, "\n")
+cat("Kolom sup. kualitatif (indeks):", col_sup_quali, "\n")
+cat("Kolom sup. kuantitatif (indeks):", col_sup_quanti, "\n")
+
+# Jalankan MCA
+res_mca <- MCA(df_mca_complete,
+               quanti.sup = col_sup_quanti,
+               quali.sup = col_sup_quali,
+               graph = FALSE,
+               ncp = 10)  # Simpan 10 dimensi
+
+cat("\n\nMCA berhasil dijalankan!\n")
+cat("Jumlah dimensi yang dihitung:", ncol(res_mca$ind$coord), "\n")
+```
+
+## Eigenvalues dan Inertia
+
+```{r eigenvalues}
+# ============================================================
+# EIGENVALUES - Variance yang dijelaskan oleh setiap dimensi
+# ============================================================
+
+eig <- get_eigenvalue(res_mca)
+
+cat("EIGENVALUES DAN VARIANCE EXPLAINED\n")
+cat("="*50, "\n\n")
+
+eig_df <- data.frame(
+  Dimensi = paste0("Dim ", 1:nrow(eig)),
+  Eigenvalue = round(eig$eigenvalue, 4),
+  Variance_Pct = round(eig$variance.percent, 2),
+  Cumulative_Pct = round(eig$cumulative.variance.percent, 2)
+)
+
+kable(eig_df, caption = "Eigenvalues dan Persentase Variance",
+      col.names = c("Dimensi", "Eigenvalue", "% Variance", "% Kumulatif"),
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+# Adjusted inertia (Benzecri correction)
+# Untuk MCA, inertia sering dikoreksi
+K <- length(vars_active)  # jumlah variabel aktif
+J <- sum(sapply(df_mca_complete[, vars_active], function(x) nlevels(factor(x))))
+cat("\nJumlah variabel aktif (K):", K, "\n")
+cat("Jumlah total kategori (J):", J, "\n")
+cat("Rata-rata kategori per variabel (J/K):", round(J/K, 2), "\n")
+```
+
+## Scree Plot
+
+```{r screeplot, fig.height=5, fig.width=8}
+# Scree Plot
+fviz_screeplot(res_mca, addlabels = TRUE, ylim = c(0, 20),
+               barfill = "steelblue", barcolor = "steelblue") +
+  geom_hline(yintercept = 100/J, linetype = "dashed", color = "red") +
+  annotate("text", x = nrow(eig) - 1, y = 100/J + 1,
+           label = paste0("Rata-rata (", round(100/J, 2), "%)"),
+           color = "red", size = 3.5) +
+  labs(title = "Scree Plot - MCA",
+       subtitle = "Garis merah = batas rata-rata inertia per dimensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+
+
+## Interpretasi Eigenvalues dan Dimensi
+
+```{r interpretasi-eigenvalues, results='asis'}
+# ============================================================
+# INTERPRETASI NARATIF EIGENVALUES
+# ============================================================
+
+# Hitung jumlah dimensi signifikan (eigenvalue > 1/K)
+threshold <- 1/K
+n_sig <- sum(eig$eigenvalue > threshold)
+cum_sig <- round(eig$cumulative.variance.percent[n_sig], 2)
+
+cat("### Hasil Analisis Eigenvalues\n\n")
+
+cat(paste0(
+  "Hasil MCA menghasilkan **", nrow(eig), " dimensi** dari ", K,
+  " variabel aktif dengan total ", J, " kategori. ",
+  "Berdasarkan kriteria eigenvalue di atas rata-rata (1/K = 1/", K,
+  " = ", round(threshold, 4), "), terdapat **", n_sig,
+  " dimensi yang signifikan** yang secara kumulatif menjelaskan **",
+  cum_sig, "%** dari total inertia (variance).\n\n"
+))
+
+cat(paste0(
+  "**Dimensi 1** memiliki eigenvalue terbesar yaitu **", round(eig$eigenvalue[1], 4),
+  "** dan menjelaskan **", round(eig$variance.percent[1], 2),
+  "%** variance. Dimensi ini merupakan dimensi paling penting yang menangkap ",
+  "pola hubungan utama antar kategori variabel. Terjadi penurunan yang cukup besar ",
+  "dari Dimensi 1 (", round(eig$variance.percent[1], 2), "%) ke Dimensi 2 (",
+  round(eig$variance.percent[2], 2), "%), yang mengindikasikan bahwa Dimensi 1 ",
+  "memiliki peran dominan dalam menjelaskan struktur data.\n\n"
+))
+
+cat(paste0(
+  "**Dimensi 1 dan 2** secara bersama-sama menjelaskan **",
+  round(eig$cumulative.variance.percent[2], 2),
+  "%** variance, yang menjadi dasar utama untuk visualisasi biplot dua dimensi. ",
+  "Meskipun persentase ini terlihat kecil dibandingkan dengan PCA pada data kontinu, ",
+  "hal ini merupakan karakteristik umum MCA karena data kategorikal menghasilkan ",
+  "banyak dimensi dan inertia terdistribusi secara merata.\n\n"
+))
+
+cat(paste0(
+  "**Dimensi 1 sampai 5** secara kumulatif menjelaskan **",
+  round(eig$cumulative.variance.percent[5], 2),
+  "%** variance. Kelima dimensi ini dipilih sebagai skor prediktor untuk tahap ",
+  "selanjutnya (Regresi Logistik Ordinal) karena masing-masing masih memiliki ",
+  "eigenvalue yang berada di atas ambang batas rata-rata.\n\n"
+))
+
+cat(paste0(
+  "Berdasarkan scree plot, terlihat adanya penurunan tajam (*elbow*) setelah Dimensi 1, ",
+  "kemudian penurunan yang lebih landai pada dimensi-dimensi berikutnya. ",
+  "Pola ini mengkonfirmasi bahwa informasi utama terkonsentrasi pada beberapa ",
+  "dimensi pertama, sementara dimensi-dimensi selanjutnya hanya menangkap ",
+  "variasi residual yang semakin kecil.\n\n"
+))
+
+cat(paste0(
+  "**Kesimpulan:** Dari ", nrow(eig), " dimensi yang dihasilkan, **", n_sig,
+  " dimensi** (kumulatif ", cum_sig, "%) dianggap informatif berdasarkan ",
+  "kriteria rata-rata eigenvalue. Untuk keperluan regresi logistik ordinal, ",
+  "digunakan **5 dimensi pertama** (", round(eig$cumulative.variance.percent[5], 2),
+  "%) sebagai variabel prediktor kontinu yang merangkum pola hubungan ",
+  "antar kategori variabel secara efisien dan ortogonal (tidak saling berkorelasi).\n"
+))
+```
+
+
+
+## Kontribusi Variabel
+
+```{r var-contribution}
+# ============================================================
+# KONTRIBUSI VARIABEL TERHADAP DIMENSI
+# ============================================================
+
+# Kontribusi variabel (eta2 - correlation ratio)
+var_contrib <- res_mca$var$contrib
+
+cat("KONTRIBUSI VARIABEL (%) TERHADAP DIMENSI 1-5\n")
+cat("="*60, "\n\n")
+
+contrib_df <- as.data.frame(round(var_contrib[, 1:5], 2))
+contrib_df$Variabel_Kategori <- rownames(contrib_df)
+contrib_df <- contrib_df[, c(ncol(contrib_df), 1:(ncol(contrib_df)-1))]
+
+kable(contrib_df,
+      caption = "Kontribusi Kategori Variabel terhadap Dimensi 1-5 (%)",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 10) %>%
+  scroll_box(height = "500px")
+```
+
+## Kontribusi Variabel Terhadap Dim 1 dan Dim 2
+
+```{r contrib-barplot, fig.height=10, fig.width=10}
+# Top kontributor Dim 1
+p1 <- fviz_contrib(res_mca, choice = "var", axes = 1, top = 20) +
+  labs(title = "Kontribusi Kategori - Dimensi 1") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
+
+# Top kontributor Dim 2
+p2 <- fviz_contrib(res_mca, choice = "var", axes = 2, top = 20) +
+  labs(title = "Kontribusi Kategori - Dimensi 2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
+
+# Top kontributor Dim 3
+p3 <- fviz_contrib(res_mca, choice = "var", axes = 3, top = 20) +
+  labs(title = "Kontribusi Kategori - Dimensi 3") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
+
+# Top kontributor Dim 4
+p4 <- fviz_contrib(res_mca, choice = "var", axes = 4, top = 20) +
+  labs(title = "Kontribusi Kategori - Dimensi 4") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+## Koordinat Kategori
+
+```{r var-coordinates}
+# ============================================================
+# KOORDINAT KATEGORI PADA DIMENSI MCA
+# ============================================================
+
+coord_df <- as.data.frame(round(res_mca$var$coord[, 1:5], 4))
+coord_df$Kategori <- rownames(coord_df)
+coord_df <- coord_df[, c(ncol(coord_df), 1:(ncol(coord_df)-1))]
+
+kable(coord_df,
+      caption = "Koordinat Kategori Variabel pada Dimensi 1-5",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 10) %>%
+  scroll_box(height = "500px")
+```
+
+## Cos2 (Kualitas Representasi)
+
+```{r cos2}
+# ============================================================
+# COS2 - Kualitas representasi kategori pada dimensi
+# ============================================================
+
+cos2_df <- as.data.frame(round(res_mca$var$cos2[, 1:5], 4))
+cos2_df$Kategori <- rownames(cos2_df)
+cos2_df <- cos2_df[, c(ncol(cos2_df), 1:(ncol(cos2_df)-1))]
+
+kable(cos2_df,
+      caption = "Cos2 Kategori Variabel pada Dimensi 1-5",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 10) %>%
+  scroll_box(height = "500px")
+
+# Visualisasi Cos2
+fviz_cos2(res_mca, choice = "var", axes = 1:2, top = 20) +
+  labs(title = "Cos2 Kategori pada Dimensi 1-2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+```
+
+
+
+## Biplot MCA (Variabel)
+
+```{r biplot-var, fig.height=10, fig.width=12}
+# ============================================================
+# BIPLOT VARIABEL - Dimensi 1 & 2
+# ============================================================
+
+fviz_mca_var(res_mca,
+             repel = TRUE,
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             ggtheme = theme_minimal()) +
+  labs(title = "MCA - Biplot Variabel (Dim 1 & Dim 2)",
+       subtitle = "Warna berdasarkan kontribusi terhadap dimensi") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 14))
+```
+
+```{r biplot-var-dim3-4, fig.height=10, fig.width=12}
+# Biplot Dimensi 3 & 4
+fviz_mca_var(res_mca,
+             axes = c(3, 4),
+             repel = TRUE,
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             ggtheme = theme_minimal()) +
+  labs(title = "MCA - Biplot Variabel (Dim 3 & Dim 4)",
+       subtitle = "Warna berdasarkan kontribusi terhadap dimensi") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 14))
+```
+
+## Biplot MCA (Individu)
+
+```{r biplot-ind, fig.height=9, fig.width=11}
+# ============================================================
+# BIPLOT INDIVIDU - diwarnai berdasarkan Y (Loyalitas)
+# ============================================================
+
+fviz_mca_ind(res_mca,
+             habillage = df_mca_complete$Y,
+             addEllipses = TRUE,
+             ellipse.type = "confidence",
+             palette = c("#E41A1C", "#377EB8", "#4DAF4A"),
+             repel = FALSE,
+             ggtheme = theme_minimal()) +
+  labs(title = "MCA - Individu (diwarnai berdasarkan Loyalitas)",
+       subtitle = "Ellipses = confidence interval per kelompok loyalitas") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 14))
+```
+
+## Biplot Gabungan (Individu + Variabel)
+
+```{r biplot-combined, fig.height=11, fig.width=13}
+# ============================================================
+# BIPLOT GABUNGAN
+# ============================================================
+
+fviz_mca_biplot(res_mca,
+                repel = TRUE,
+                habillage = df_mca_complete$Y,
+                addEllipses = TRUE,
+                ellipse.type = "confidence",
+                palette = c("#E41A1C", "#377EB8", "#4DAF4A"),
+                col.var = "black",
+                ggtheme = theme_minimal(),
+                label = "var") +
+  labs(title = "MCA Biplot - Individu & Variabel",
+       subtitle = "Individu diwarnai berdasarkan Loyalitas (Y)") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 14))
+```
+
+
+
+## Variabel Supplementary (Y dan X4)
+
+```{r sup-var}
+# ============================================================
+# VARIABEL SUPPLEMENTARY
+# ============================================================
+
+cat("KOORDINAT VARIABEL SUPPLEMENTARY KUALITATIF (Y):\n")
+print(round(res_mca$quali.sup$coord[, 1:5], 4))
+
+cat("\n\nCOS2 VARIABEL SUPPLEMENTARY KUALITATIF (Y):\n")
+print(round(res_mca$quali.sup$cos2[, 1:5], 4))
+
+cat("\n\nV.TEST VARIABEL SUPPLEMENTARY KUALITATIF (Y):\n")
+print(round(res_mca$quali.sup$v.test[, 1:5], 4))
+
+cat("\n\nKOORDINAT VARIABEL SUPPLEMENTARY KUANTITATIF (X4):\n")
+print(round(res_mca$quanti.sup$coord[, 1:5], 4))
+```
+
+## Plot Variabel Supplementary (Y)
+
+```{r plot-sup, fig.height=8, fig.width=10}
+# Plot Y supplementary categories pada MCA map
+fviz_mca_var(res_mca,
+             repel = TRUE,
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             ggtheme = theme_minimal()) +
+  # Tambahkan titik supplementary Y
+  geom_point(data = as.data.frame(res_mca$quali.sup$coord[, 1:2]),
+             aes(x = `Dim 1`, y = `Dim 2`),
+             color = "darkgreen", size = 4, shape = 17) +
+  geom_text(data = as.data.frame(res_mca$quali.sup$coord[, 1:2]),
+            aes(x = `Dim 1`, y = `Dim 2`,
+                label = rownames(res_mca$quali.sup$coord)),
+            color = "darkgreen", size = 4, fontface = "bold",
+            vjust = -1) +
+  labs(title = "MCA Map dengan Variabel Supplementary Y (Loyalitas)",
+       subtitle = "Segitiga hijau = kategori Y (supplementary)") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+## Deskripsi Dimensi
+
+```{r dim-description}
+# ============================================================
+# DESKRIPSI OTOMATIS DIMENSI
+# ============================================================
+
+cat("DESKRIPSI DIMENSI MCA\n")
+cat("="*50, "\n")
+
+dimdesc <- dimdesc(res_mca, axes = 1:5, proba = 0.05)
+
+for(i in 1:5) {
+  cat(paste0("\n\n--- DIMENSI ", i, " ---\n"))
+  if(!is.null(dimdesc[[i]]$category)) {
+    cat("\nKategori yang signifikan (p < 0.05):\n")
+    print(head(dimdesc[[i]]$category, 15))
+  }
+}
+```
+
+
+
+## Correlation Ratio (eta2) per Variabel
+
+```{r eta2, fig.height=6, fig.width=8}
+# ============================================================
+# ETA2 - Hubungan antara variabel dan dimensi
+# ============================================================
+
+# eta2 menunjukkan seberapa kuat variabel terkait dengan dimensi
+eta2 <- res_mca$var$eta2
+
+cat("ETA-SQUARED (Correlation Ratio) per Variabel:\n")
+cat("="*50, "\n\n")
+
+# Agregasi eta2 per variabel (bukan per kategori)
+# Gunakan fungsi bawaan dari FactoMineR
+var_eta2 <- data.frame(round(eta2[, 1:5], 4))
+var_eta2$Kategori <- rownames(var_eta2)
+
+kable(var_eta2,
+      caption = "Eta-squared (Hubungan Variabel-Dimensi)",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+# Ekstraksi Skor Dimensi MCA untuk Regresi Logistik Ordinal
+
+```{r extract-scores}
+# ============================================================
+# EKSTRAKSI KOORDINAT INDIVIDU (SKOR MCA)
+# Skor ini akan digunakan sebagai variabel prediktor
+# dalam Regresi Logistik Ordinal
+# ============================================================
+
+# Ambil koordinat individu pada dimensi terpilih
+# Pilih dimensi berdasarkan Scree Plot (misal 5 dimensi pertama)
+ind_coord <- as.data.frame(res_mca$ind$coord[, 1:5])
+colnames(ind_coord) <- paste0("MCA_Dim", 1:5)
+
+# Gabungkan dengan variabel dependen Y
+df_for_regression <- cbind(
+  Y = df_mca_complete$Y,
+  ind_coord,
+  # Juga sertakan variabel asli untuk perbandingan
+  df_mca_complete[, vars_active]
+)
+
+cat("DATASET UNTUK REGRESI LOGISTIK ORDINAL\n")
+cat("="*50, "\n\n")
+cat("Dimensi dataset:", nrow(df_for_regression), "x", ncol(df_for_regression), "\n\n")
+cat("Variabel:\n")
+print(names(df_for_regression))
+
+cat("\n\nStruktur data:\n")
+str(df_for_regression[, 1:6])
+
+cat("\n\n6 Baris Pertama (Y + Skor MCA):\n")
+kable(head(df_for_regression[, 1:6], 10),
+      caption = "Dataset untuk Regresi Logistik Ordinal (Y + Skor MCA Dim 1-5)",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Simpan Dataset untuk Regresi
+
+```{r save-data}
+# ============================================================
+# SIMPAN DATASET
+# ============================================================
+
+# Simpan dataset lengkap untuk regresi
+write.csv(df_for_regression, "data_for_ordinal_regression.csv", row.names = FALSE)
+cat("Dataset disimpan: data_for_ordinal_regression.csv\n")
+
+# Simpan juga hasil MCA object
+saveRDS(res_mca, "hasil_mca.rds")
+cat("Objek MCA disimpan: hasil_mca.rds\n")
+cat("\nUntuk memuat kembali: res_mca <- readRDS('hasil_mca.rds')\n")
+```
+
+# Ringkasan Hasil MCA
+
+```{r summary-mca}
+# ============================================================
+# RINGKASAN
+# ============================================================
+
+cat("="*60, "\n")
+cat("RINGKASAN MULTIPLE CORRESPONDENCE ANALYSIS\n")
+cat("="*60, "\n\n")
+
+cat("1. JUMLAH OBSERVASI:", nrow(df_mca_complete), "\n")
+cat("2. JUMLAH VARIABEL AKTIF:", length(vars_active), "\n")
+cat("3. JUMLAH TOTAL KATEGORI:", J, "\n")
+cat("4. VARIABEL SUPPLEMENTARY KUALITATIF: Y (Loyalitas)\n")
+cat("5. VARIABEL SUPPLEMENTARY KUANTITATIF: X4 (Jumlah Platform AI)\n\n")
+
+cat("6. EIGENVALUES (5 dimensi pertama):\n")
+for(i in 1:5) {
+  cat(sprintf("   Dim %d: eigenvalue = %.4f, variance = %.2f%%, kumulatif = %.2f%%\n",
+              i, eig$eigenvalue[i], eig$variance.percent[i],
+              eig$cumulative.variance.percent[i]))
+}
+
+cat("\n7. DIMENSI YANG DIREKOMENDASIKAN UNTUK REGRESI:\n")
+cat("   Berdasarkan scree plot dan rata-rata inertia, dimensi yang\n")
+cat("   direkomendasikan untuk digunakan sebagai prediktor dalam\n")
+cat("   Regresi Logistik Ordinal dapat ditentukan dari dimensi dengan\n")
+cat("   eigenvalue di atas rata-rata (", round(1/K, 4), ")\n\n")
+
+n_dim_selected <- sum(eig$eigenvalue > 1/K)
+cat("   Jumlah dimensi terpilih (eigenvalue > 1/K):", n_dim_selected, "\n")
+cat("   Total variance explained:", round(eig$cumulative.variance.percent[n_dim_selected], 2), "%\n")
+
+cat("\n\n8. CATATAN UNTUK REGRESI LOGISTIK ORDINAL:\n")
+cat("   - File 'data_for_ordinal_regression.csv' berisi skor MCA + variabel asli\n")
+cat("   - Variabel dependen: Y (ordinal: Rendah, Sedang, Tinggi)\n")
+cat("   - Prediktor opsi 1: Skor MCA (MCA_Dim1 s/d MCA_Dim5)\n")
+cat("   - Prediktor opsi 2: Variabel asli kategorik\n")
+cat("   - Package yang direkomendasikan: MASS::polr() atau ordinal::clm()\n")
+```
+
+---
+
+*Dokumen ini dibuat menggunakan R Markdown. Hasil MCA siap digunakan untuk tahap selanjutnya yaitu Regresi Logistik Ordinal.*
