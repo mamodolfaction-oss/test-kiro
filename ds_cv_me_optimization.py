@@ -1,935 +1,864 @@
 # %% [markdown]
-# # Optimasi Parameter Diagram Kendali Double Sampling Coefficient of Variation (DS CV)
-# # dengan Pengaruh Ralat Pengukuran (Measurement Error)
-# 
-# ## Referensi: Nuriman et al. (2026) - DS CV-ME (Linear Covariate Error Model)
+# # Optimasi Parameter DS CV-ME Chart — per Kombinasi (δ × Parameter)
+# ## Referensi: Nuriman et al. (2026) — JQMA
 # ### Model: Y_ij = A + B*X_ij + e_ij
-# ### Metrik Performa: TARL (Time-Adjusted Run Length)
+# ### Metrik: TARL (Time-Adjusted Run Length)
+# ### Optimasi: GA dijalankan TERPISAH untuk setiap sel tabel
 # ---
-# ### Kondisi 1: Constant Variance Error (sigma_M^2 konstan)
-# ### Kondisi 2: Linear Variance Error (sigma_M_j = omega*sigma_X0 + psi*mu_X)
+# **Catatan**: Setiap sel tabel (kombinasi δ × nilai-parameter) dioptimasi
+# secara independen menggunakan GA, sehingga setiap sel memiliki
+# n1, n2, ku1, kl1, wu, wl, ku2, kl2 dan TARL yang berbeda-beda.
 
 # %% [markdown]
-# ## 1. Import Library dan Setup
+# ## 1. Import Library
 
 # %%
 import numpy as np
-from scipy import stats, optimize
-from scipy.optimize import differential_evolution, minimize
-import pandas as pd
-import matplotlib.pyplot as plt
-from itertools import product
+from scipy.stats import nct, ncf
+from scipy.integrate import quad
+from joblib import Parallel, delayed
 import warnings
-warnings.filterwarnings('ignore')
+import time
+import itertools
 
-print("="*70)
-print("  OPTIMASI DS CV-ME CONTROL CHART")
-print("  Metrik: TARL (Time-Adjusted Run Length)")
-print("="*70)
-
-
-# %% [markdown]
-# ## 2. Distribusi Sample CV dan Fungsi Dasar
-#
-# ### Teori Distribusi:
-# Untuk sampel X_1,...,X_n dari N(mu, sigma^2):
-# - CV_hat = S/X_bar (sample CV)
-# - Statistik U = n/CV_hat^2 mengikuti distribusi non-central chi-square
-#   U ~ chi^2(n-1, lambda) dengan lambda = n*gamma^2, gamma = mu/sigma = 1/CV
-#
-# ### CDF Sample CV:
-# P(CV_hat <= c) = P(U >= n/c^2) = 1 - F_{chi2}(n/c^2 | n-1, n/CV^2)
-
-# %%
-def cdf_sample_cv(c, n, cv_true):
-    """
-    CDF distribusi sample CV menggunakan distribusi chi-square non-sentral.
-    
-    P(CV_hat <= c) = 1 - F_{chi2_nc}(n/c^2 | df=n-1, nc=n/cv_true^2)
-    
-    Parameters:
-    -----------
-    c : float - Nilai batas CV
-    n : int - Ukuran sampel
-    cv_true : float - CV populasi sebenarnya
-    
-    Returns:
-    --------
-    P(CV_hat <= c)
-    """
-    if c <= 0:
-        return 0.0
-    if cv_true <= 0:
-        return 1.0
-    
-    df = n - 1                    # Derajat kebebasan
-    nc = n / (cv_true**2)         # Parameter non-sentralitas = n*gamma^2
-    threshold = n / (c**2)        # Titik evaluasi
-    
-    # P(CV_hat <= c) = P(chi2_nc >= n/c^2) = 1 - CDF_chi2_nc(n/c^2)
-    prob = 1.0 - stats.ncx2.cdf(threshold, df=df, nc=nc)
-    return prob
-
-
-def prob_cv_in_range(cv_lower, cv_upper, n, cv_true):
-    """
-    P(cv_lower < CV_hat < cv_upper)
-    """
-    if cv_lower >= cv_upper:
-        return 0.0
-    return cdf_sample_cv(cv_upper, n, cv_true) - cdf_sample_cv(cv_lower, n, cv_true)
-
-
-print("Fungsi distribusi CV berhasil didefinisikan.")
-print(f"  Contoh: P(CV_hat <= 0.25 | n=10, CV=0.2) = {cdf_sample_cv(0.25, 10, 0.2):.4f}")
+warnings.filterwarnings("ignore")
+print("Library berhasil dimuat.")
 
 
 # %% [markdown]
-# ## 3. Model Measurement Error - CV yang Diamati
-#
-# ### Linear Covariate Error Model: Y_ij = A + B*X_ij + e_ij
-#
-# **Kondisi 1 (Constant Variance):** e_ij ~ N(0, sigma_M^2)
-# - Var(Y_bar_i) = B^2 * Var(X) + sigma_M^2/m
-# - CV_Y = sqrt(B^2*CV_X^2 + theta^2/(m*n)) / ... 
-# - Simplified: CV_Y_observed tergantung pada B, theta, m
-#
-# **Kondisi 2 (Linear Variance):** sigma_M = omega*sigma_X0 + psi*mu_X
-# - Varians error bervariasi dengan mean proses
+# ## 2. Parameter Global
 
 # %%
-def cv_observed_constant(cv_0, delta, B, theta, m, eta=1.0):
-    """
-    CV yang diamati (observed) pada Kondisi 1: Constant Variance Error.
-    
-    Dengan measurement error, CV yang diamati berubah:
-    CV_Y = sqrt(B^2 * delta^2 * CV_0^2 + theta^2/m) / |B|
-    
-    Di mana:
-    - CV asli out-of-control: CV_1 = delta * CV_0
-    - sigma_M = theta * sigma_X0 (konstan)
-    - Dengan m replikasi: varians error efektif = sigma_M^2/m
-    - eta: faktor pergeseran pada varians error (default=1, tidak bergeser)
-    
-    Parameters:
-    -----------
-    cv_0 : float - CV in-control
-    delta : float - Faktor pergeseran (CV_1 = delta * CV_0)
-    B : float - Slope model kovariat linear
-    theta : float - Rasio sigma_M/sigma_X0
-    m : int - Jumlah replikasi
-    eta : float - Faktor pergeseran varians error
-    
-    Returns:
-    --------
-    cv_observed : float - CV yang diamati setelah pengaruh ME
-    """
-    # CV proses yang sebenarnya setelah shift
-    cv_actual = delta * cv_0
-    
-    # Varians observed = B^2 * sigma_X^2 + sigma_M^2/m
-    # = B^2 * (cv_actual * mu_X)^2 + (eta*theta*sigma_X0)^2/m
-    # = mu_X^2 * [B^2 * cv_actual^2 + (eta*theta*cv_0)^2/m]
-    # (karena sigma_X0 = cv_0 * mu_X)
-    #
-    # Mean observed = B * mu_X (dengan A=0)
-    # CV_observed = sqrt(Var) / Mean = sqrt(B^2*cv_actual^2 + eta^2*theta^2*cv_0^2/m) / |B|
-    
-    var_term = B**2 * cv_actual**2 + (eta * theta * cv_0)**2 / m
-    cv_observed = np.sqrt(var_term) / abs(B)
-    
-    return cv_observed
+GAMMA_0      = 0.05   # γ₀   : CV in-control (dari paper: γ₀=0.05)
+N0           = 5      # n₀   : target rata-rata ukuran sampel
+H            = 500    # H    : truncation TARL (makin besar → makin mendekati ARL)
+DELTA_LIST   = [1.01, 1.05, 1.1, 1.2, 1.3, 1.5, 2.0]
 
+N1_RANGE = [3, 4, 5]  # Kandidat n1
+N_MAX    = 31          # Batas maksimum n1+n2
 
-def cv_observed_linear(cv_0, delta, B, theta, m, omega, psi, eta=1.0):
-    """
-    CV yang diamati pada Kondisi 2: Linear Variance Error.
-    
-    sigma_M = omega * sigma_X0 + psi * mu_X
-    sigma_M = mu_X * (omega * cv_0 + psi)
-    
-    CV_observed = sqrt(B^2 * cv_actual^2 + (omega*cv_0 + psi)^2/m) / |B|
-    
-    Parameters:
-    -----------
-    cv_0 : float - CV in-control
-    delta : float - Faktor pergeseran
-    B : float - Slope
-    theta : float - Rasio dasar (bisa = omega untuk konsistensi)
-    m : int - Replikasi
-    omega : float - Koefisien C_0 
-    psi : float - Koefisien C_1 (sensitivitas terhadap mean)
-    eta : float - Faktor pergeseran error
-    """
-    cv_actual = delta * cv_0
-    
-    # sigma_M/mu_X = omega*cv_0 + psi
-    # Var(Y)/mu_X^2 = B^2*cv_actual^2 + (omega*cv_0 + psi)^2/m
-    error_cv_term = (omega * cv_0 + psi)**2 / m
-    var_term = B**2 * cv_actual**2 + error_cv_term
-    cv_observed = np.sqrt(var_term) / abs(B)
-    
-    return cv_observed
+# Bounds koefisien GA: [ku1, kl1, wu, wl, ku2, kl2]
+DEFAULT_BOUNDS = [
+    (1.0, 10.0),   # ku1 : koef UCL₁
+    (0.1,  5.0),   # kl1 : koef LCL₁
+    (0.1,  8.0),   # wu  : koef UWL
+    (0.1,  5.0),   # wl  : koef LWL
+    (0.5, 10.0),   # ku2 : koef UCL₂
+    (0.1,  5.0),   # kl2 : koef LCL₂
+]
 
-
-# Verifikasi
-cv_0 = 0.2
-print("Verifikasi CV Observed:")
-print(f"  In-control (delta=1, theta=0): CV_obs = {cv_observed_constant(cv_0, 1.0, 1, 0, 1):.4f}")
-print(f"  In-control (delta=1, theta=0.05): CV_obs = {cv_observed_constant(cv_0, 1.0, 1, 0.05, 1):.4f}")
-print(f"  OOC (delta=1.2, theta=0): CV_obs = {cv_observed_constant(cv_0, 1.2, 1, 0, 1):.4f}")
-print(f"  OOC (delta=1.2, theta=0.05): CV_obs = {cv_observed_constant(cv_0, 1.2, 1, 0.05, 1):.4f}")
+POP_SIZE      = 40
+N_GENERATIONS = 60
+PATIENCE      = 15
+N_JOBS        = -1    # -1 = semua core tersedia
 
 
 # %% [markdown]
-# ## 4. Probabilitas Sinyal Diagram DS CV
-#
-# ### Mekanisme Double Sampling:
-# **Tahap 1** (n1 sampel):
-# - Hitung CV_hat dari n1 observasi
-# - Batas kendali: LCL_1 = kL1*CV_0, UCL_1 = kU1*CV_0  
-# - Batas peringatan: LWL = wL*CV_0, UWL = wU*CV_0
-# - Jika CV_hat > UCL_1 atau CV_hat < LCL_1 → **SINYAL OOC**
-# - Jika LCL_1 ≤ CV_hat < LWL atau UWL < CV_hat ≤ UCL_1 → **LANJUT TAHAP 2**
-# - Jika LWL ≤ CV_hat ≤ UWL → **IN-CONTROL**
-#
-# **Tahap 2** (n1+n2 sampel gabungan):
-# - Hitung CV_hat dari n1+n2 observasi
-# - Batas kendali: LCL_2 = kL2*CV_0, UCL_2 = kU2*CV_0
-# - Jika CV_hat > UCL_2 atau CV_hat < LCL_2 → **SINYAL OOC**
-# - Lainnya → **IN-CONTROL**
-#
-# ### Catatan Penting tentang Parameterisasi:
-# Batas-batas diekspresikan sebagai KOEFISIEN dikalikan CV_0:
-# - kU1 > wU > 1 > wL > kL1 (urutan untuk deteksi peningkatan DAN penurunan CV)
-# 
-# ATAU dalam beberapa paper, batas diparameterisasi langsung sebagai nilai absolut.
-# Di sini kita menggunakan nilai absolut sesuai format tabel jurnal.
+# ## 3. Model γ* — Sesuai Paper Nuriman et al. (2026)
+# ### Model A: Constant Error Variance (Eq. 6 & 8)
+# ### Model B: Linearly Increasing Error Variance (Eq. 13 & 14)
 
 # %%
-def compute_signal_probability(n1, n2, kL1, kU1, wL, wU, kL2, kU2, cv_true):
-    """
-    Menghitung probabilitas sinyal (deteksi OOC) untuk diagram DS CV.
-    
-    Semua batas adalah nilai ABSOLUT dari CV (bukan koefisien).
-    Urutan: kL1 < wL < wU < kU1 (untuk tahap 1)
-            kL2 < kU2 (untuk tahap 2)
-    
-    Parameters:
-    -----------
-    n1, n2 : int - Ukuran sampel tahap 1 dan tambahan tahap 2
-    kL1, kU1 : float - Batas kendali absolut tahap 1
-    wL, wU : float - Batas peringatan absolut tahap 1  
-    kL2, kU2 : float - Batas kendali absolut tahap 2
-    cv_true : float - CV sebenarnya (observed, termasuk ME)
-    
-    Returns:
-    --------
-    P_signal : float - Probabilitas keseluruhan terdeteksi OOC
-    P_stage2 : float - Probabilitas masuk ke tahap 2
-    """
-    # === TAHAP 1: Sinyal langsung ===
-    # P(CV_hat_1 > kU1) + P(CV_hat_1 < kL1)
-    P_above_kU1 = 1.0 - cdf_sample_cv(kU1, n1, cv_true)
-    P_below_kL1 = cdf_sample_cv(kL1, n1, cv_true)
-    P_signal_1 = P_above_kU1 + P_below_kL1
-    
-    # === TAHAP 1: Zona peringatan (lanjut ke tahap 2) ===
-    # P(wU < CV_hat_1 <= kU1): zona warning atas
-    P_warn_upper = prob_cv_in_range(wU, kU1, n1, cv_true)
-    # P(kL1 <= CV_hat_1 < wL): zona warning bawah
-    P_warn_lower = prob_cv_in_range(kL1, wL, n1, cv_true)
-    P_stage2 = P_warn_upper + P_warn_lower
-    
-    # === TAHAP 2: Sinyal dari sampel gabungan (n1 + n2) ===
-    n_total = n1 + n2
-    P_above_kU2 = 1.0 - cdf_sample_cv(kU2, n_total, cv_true)
-    P_below_kL2 = cdf_sample_cv(kL2, n_total, cv_true)
-    P_signal_2 = P_above_kU2 + P_below_kL2
-    
-    # === TOTAL ===
-    # P(sinyal) = P(sinyal tahap 1) + P(masuk tahap 2) * P(sinyal tahap 2)
-    P_signal = P_signal_1 + P_stage2 * P_signal_2
-    
-    return P_signal, P_stage2
+def gamma0_star_const(gamma0, theta, eta, B, m):
+    """γ*₀ in-control — Model A. Eq.(6): γ*₀ = γ₀·√(B²+η²/m)/(θ+B)"""
+    return gamma0 * np.sqrt(B**2 + eta**2 / m) / (theta + B)
 
 
-def compute_TARL(n1, n2, kL1, kU1, wL, wU, kL2, kU2, cv_true):
+def gamma_plus_star_const(delta, gamma0, theta, eta, B, m):
+    """γ*₊ OOC — Model A. Eq.(8) b=δ: γ*₊ = γ₀·√(B²δ²+η²/m)/(θ+B)"""
+    return gamma0 * np.sqrt(B**2 * delta**2 + eta**2 / m) / (theta + B)
+
+
+def gamma0_star_linear(gamma0, theta, omega, phi, B, m):
+    """γ*₀ in-control — Model B. Eq.(13): γ*₀ = γ₀·√(B²+(ω²+ϕ²)/m)/(θ+B)"""
+    return gamma0 * np.sqrt(B**2 + (omega**2 + phi**2) / m) / (theta + B)
+
+
+def gamma_plus_star_linear(delta, gamma0, theta, omega, phi, B, m):
+    """γ*₊ OOC — Model B. Eq.(14) b=1: γ*₊ = γ₀·√(B²+(ω²+ϕ²/δ²)/m)/(θ+B/δ)"""
+    num = gamma0 * np.sqrt(B**2 + (omega**2 + phi**2 / delta**2) / m)
+    den = theta + B / delta
+    return num / den
+
+
+def get_gamma_stars(delta, gamma0, theta, B, m,
+                    eta=0.0, omega=0.0, phi=0.0, error_model='constant'):
+    """Kembalikan (γ*₀, γ*₊) sesuai model error."""
+    if error_model == 'constant':
+        g0s = gamma0_star_const(gamma0, theta, eta, B, m)
+        gps = gamma_plus_star_const(delta, gamma0, theta, eta, B, m)
+    else:
+        g0s = gamma0_star_linear(gamma0, theta, omega, phi, B, m)
+        gps = gamma_plus_star_linear(delta, gamma0, theta, omega, phi, B, m)
+    return g0s, gps
+
+
+print("Verifikasi γ* (θ=0.05, η=0.28, B=1, m=1, δ=1.3):")
+g0s = gamma0_star_const(0.05, 0.05, 0.28, 1, 1)
+gps = gamma_plus_star_const(1.3, 0.05, 0.05, 0.28, 1, 1)
+print(f"  Model A: γ*₀={g0s:.4f} (paper≈0.0495), γ*₊={gps:.4f}")
+g0s_B = gamma0_star_linear(0.05, 0.05, 0, 0, 1, 1)
+gps_B = gamma_plus_star_linear(1.3, 0.05, 0.05, 0, 0, 1, 1)
+print(f"  Model B (ω=ϕ=0): γ*₀={g0s_B:.4f}, γ*₊={gps_B:.4f}")
+
+
+# %% [markdown]
+# ## 4. Distribusi γ̂, Batas Kendali, dan Probabilitas OOC
+# ### Sesuai Eq. 18, 20-22, 23-28 paper
+
+# %%
+def mean_std_gamma_hat(n_total, g):
+    """μ dan σ dari γ̂ — Eq.(21)-(22) Hong et al. (2008)."""
+    g2, g4, g6 = g**2, g**4, g**6
+    N  = n_total
+    mu = g * (1
+              + (1/N)    * (g2 - 0.25)
+              + (1/N**2) * (3*g4 - g2/4 - 7/32)
+              + (1/N**3) * (15*g6 - 3*g4/4 - 7*g2/32 - 19/128))
+    s2 = g**2 * ((1/N)    * (g2 + 0.5)
+               + (1/N**2) * (8*g4 - g2 - 3/8)
+               + (1/N**3) * (69*g6 + 7*g4/2 + 3*g2/4 + 3/16))
+    return mu, np.sqrt(max(s2, 1e-20))
+
+
+def cdf_gamma_hat(x, n, g):
+    """CDF γ̂ — Eq.(18): F(x|n,g) = 1 - F_t(√n/x | n-1, √n/g)"""
+    if x <= 0 or g <= 0: return 0.0
+    return 1.0 - nct.cdf(np.sqrt(n) / x, df=n-1, nc=np.sqrt(n) / g)
+
+
+def compute_limits(n1, n2, ku1, kl1, wu, wl, ku2, kl2, g0s):
     """
-    Menghitung TARL (Time-Adjusted Run Length).
-    
-    TARL = ASS / P(sinyal)
-    ASS (Average Sample Size) = n1 + n2 * P(masuk tahap 2)
-    
-    TARL memperhitungkan biaya sampling rata-rata per siklus,
-    memberikan metrik yang lebih realistis dibanding ARL standar.
+    Hitung 6 batas kendali dari koefisien — Eq.(20a)-(20d).
+    Limit = μ ± k·σ  dengan μ,σ dari mean_std_gamma_hat.
     """
-    P_signal, P_stage2 = compute_signal_probability(
-        n1, n2, kL1, kU1, wL, wU, kL2, kU2, cv_true
+    mu1, s1 = mean_std_gamma_hat(n1,      g0s)
+    mu2, s2 = mean_std_gamma_hat(n1 + n2, g0s)
+    return (
+        mu1 + ku1 * s1,          # UCL₁
+        max(mu1 - kl1 * s1, 1e-8),  # LCL₁
+        mu1 + wu  * s1,          # UWL
+        max(mu1 - wl  * s1, 1e-8),  # LWL
+        mu2 + ku2 * s2,          # UCL₂
+        max(mu2 - kl2 * s2, 1e-8),  # LCL₂
     )
-    
-    # Average Sample Size per siklus
-    ASS = n1 + n2 * P_stage2
-    
-    if P_signal < 1e-15:
-        return 1e10
-    
-    TARL = ASS / P_signal
-    return TARL
 
 
-print("Fungsi TARL berhasil didefinisikan.")
-# Quick test
-cv0 = 0.2
-tarl_ic = compute_TARL(5, 20, 0.10, 0.35, 0.15, 0.28, 0.12, 0.32, cv0)
-tarl_ooc = compute_TARL(5, 20, 0.10, 0.35, 0.15, 0.28, 0.12, 0.32, 0.24)
-print(f"  Test TARL in-control (CV=0.2): {tarl_ic:.2f}")
-print(f"  Test TARL out-of-control (CV=0.24): {tarl_ooc:.2f}")
+def is_valid_limits(UCL1, LCL1, UWL, LWL, UCL2, LCL2):
+    """Validasi: UCL₁ > UWL > LWL > LCL₁ > 0, UCL₂ < UCL₁, LCL₂ > LCL₁."""
+    return (UCL1 > UWL > LWL > LCL1 > 0
+            and UCL2 < UCL1 and LCL2 > LCL1)
+
+
+def compute_P_ooc(n1, n2, UCL1, LCL1, UWL, LWL, UCL2, LCL2, gps):
+    """
+    P^E_ooc = P_ooc1 + P_ooc2  [Eq.23]
+    P_ooc1: langsung sinyal dari Tahap 1      [Eq.24]
+    P_ooc2: masuk Tahap 2 → sinyal             [Eq.28 via integrasi]
+    """
+    # Stage 1 direct signal
+    p_in   = cdf_gamma_hat(UCL1, n1, gps) - cdf_gamma_hat(LCL1, n1, gps)
+    p_ooc1 = max(1.0 - p_in, 0.0)
+
+    # Stage 2 via integrasi numerik
+    ncp1 = np.sqrt(n1) / gps
+    sn   = np.sqrt(n1)
+
+    def integrand(u):
+        g1 = u / sn
+        if g1 <= 0: return 0.0
+        f   = (n1-1)/(n2-1) + 1
+        u2  = u**2
+        ua  = max(f*UCL2**2 - (n1-1)*n1/((n2-1)*u2), 1e-12)
+        la  = max(f*LCL2**2 - (n1-1)*n1/((n2-1)*u2), 0.0)
+        nc2 = n2 / (gps**2)
+        pu  = 1.0 - ncf.cdf(ua * n2/gps**2, dfn=1, dfd=n2-1, nc=nc2)
+        pl  = ncf.cdf(la * n2/gps**2, dfn=1, dfd=n2-1, nc=nc2)
+        return max(pu + pl, 0.0) * nct.pdf(u, df=n1-1, nc=ncp1)
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            v1, _ = quad(integrand, LCL1*sn, LWL*sn,
+                         limit=80, epsabs=1e-4, epsrel=1e-2)
+            v2, _ = quad(integrand, UWL*sn, UCL1*sn,
+                         limit=80, epsabs=1e-4, epsrel=1e-2)
+        p_ooc2 = (v1 + v2) if not (np.isnan(v1) or np.isnan(v2)) else 0.0
+    except Exception:
+        p_ooc2 = 0.0
+
+    P_ooc = max(p_ooc1 + p_ooc2, 1e-12)
+    return P_ooc, max(1.0 - P_ooc, 0.0)
 
 
 # %% [markdown]
-# ## 5. Fungsi Objektif dan Optimasi
-#
-# ### Strategi Optimasi:
-# - **Variabel diskrit** (n1, n2): Grid search
-# - **Variabel kontinu** (kL1, kU1, wL, wU, kL2, kU2): Differential Evolution
-# - **Kendala**: TARL_0 ≈ target (biasanya 370.4)
-# - **Tujuan**: Minimasi TARL_1 (out-of-control)
-#
-# ### Parameterisasi Batas (sesuai jurnal):
-# Batas diekspresikan sebagai koefisien K dikalikan CV_0:
-# - UCL_1 = kU1 * CV_0, LCL_1 = kL1 * CV_0 (kU1 > 1 > kL1)
-# - UWL = wU * CV_0, LWL = wL * CV_0 (kU1 > wU > 1 > wL > kL1)
-# - UCL_2 = kU2 * CV_0, LCL_2 = kL2 * CV_0
+# ## 5. TARL — Time-Adjusted Run Length
+# ### TARL = E[waktu sampai sinyal] dengan truncation H
 
 # %%
-def objective_ds_cv(params, n1, n2, cv_0, delta, B, theta, m, 
-                    TARL0_target, condition, omega=0, psi=0, eta=1.0):
+def tarl_from_beta(beta, H_val=H):
     """
-    Fungsi objektif: minimasi TARL_1 dengan kendala TARL_0 ≈ target.
+    TARL dari β (probabilitas IC per siklus) dengan truncation H.
     
-    params = [kU1, kL1, wU, wL, kU2, kL2] sebagai KOEFISIEN dari CV_0
+    TARL = Σ_{j=1}^{H-1} j·(1-β)·β^{j-1} + H·β^{H-1}
+         = (1-β)·Σj·β^{j-1} + H·β^{H-1}
     
-    Batas absolut: UCL_1 = kU1*CV_0, LCL_1 = kL1*CV_0, dst.
+    Saat H→∞: TARL → ARL = 1/(1-β) = 1/P_ooc
+    Gunakan H=500 untuk mendekati ARL standar.
     """
-    kU1_coef, kL1_coef, wU_coef, wL_coef, kU2_coef, kL2_coef = params
-    
-    # Konversi ke nilai absolut
-    kU1 = kU1_coef * cv_0
-    kL1 = kL1_coef * cv_0
-    wU = wU_coef * cv_0
-    wL = wL_coef * cv_0
-    kU2 = kU2_coef * cv_0
-    kL2 = kL2_coef * cv_0
-    
-    # === Cek kendala urutan ===
-    # Urutan yang benar: kL1 < wL < wU < kU1 dan kL2 < kU2
-    # Dalam koefisien: kL1_coef < wL_coef < wU_coef < kU1_coef
-    #                  kL2_coef < kU2_coef
-    if not (kL1_coef < wL_coef < wU_coef < kU1_coef):
-        return 1e12
-    if not (kL2_coef < kU2_coef):
-        return 1e12
-    
-    # === Hitung CV observed in-control (delta=1) ===
-    if condition == 'constant':
-        cv_obs_0 = cv_observed_constant(cv_0, 1.0, B, theta, m, eta)
-    else:
-        cv_obs_0 = cv_observed_linear(cv_0, 1.0, B, theta, m, omega, psi, eta)
-    
-    # === Hitung TARL_0 (in-control) ===
-    TARL_0 = compute_TARL(n1, n2, kL1, kU1, wL, wU, kL2, kU2, cv_obs_0)
-    
-    # === Kendala TARL_0 harus dekat target ===
-    # Toleransi: TARL_0 harus dalam 95%-105% dari target
-    if TARL_0 < TARL0_target * 0.98:
-        return 1e10 + 1e5 * (TARL0_target - TARL_0)
-    
-    # === Hitung CV observed out-of-control (delta > 1) ===
-    if condition == 'constant':
-        cv_obs_1 = cv_observed_constant(cv_0, delta, B, theta, m, eta)
-    else:
-        cv_obs_1 = cv_observed_linear(cv_0, delta, B, theta, m, omega, psi, eta)
-    
-    # === Hitung TARL_1 (out-of-control) - TARGET MINIMASI ===
-    TARL_1 = compute_TARL(n1, n2, kL1, kU1, wL, wU, kL2, kU2, cv_obs_1)
-    
-    # Penalti ringan untuk mendorong TARL_0 tepat di target
-    penalty = 0.0001 * (TARL_0 - TARL0_target)**2 / TARL0_target
-    
-    return TARL_1 + penalty
+    if abs(beta - 1.0) < 1e-14: return float(H_val)
+    if abs(beta)       < 1e-14: return 1.0
+    j_arr = np.arange(1, H_val)
+    P_ooc = 1.0 - beta
+    tarl  = (np.sum(j_arr * beta**(j_arr-1)) * P_ooc
+             + H_val * beta**(H_val-1))
+    return max(float(tarl), 1.0)
 
+
+def compute_TARL(delta, n1, n2, ku1, kl1, wu, wl, ku2, kl2,
+                 gamma0=GAMMA_0, theta=0.0, B=1, m=1,
+                 eta=0.0, omega=0.0, phi=0.0,
+                 error_model='constant', H_val=H):
+    """
+    Hitung TARL(δ) untuk satu set parameter chart.
+    Seluruh pipeline: γ* → limits → P_ooc → β → TARL
+    """
+    # γ* in-control (untuk menghitung limits)
+    g0s_ic, _ = get_gamma_stars(1.0, gamma0, theta, B, m,
+                                eta=eta, omega=omega, phi=phi,
+                                error_model=error_model)
+    # γ* out-of-control (untuk menghitung P_ooc)
+    _, gps    = get_gamma_stars(delta, gamma0, theta, B, m,
+                                eta=eta, omega=omega, phi=phi,
+                                error_model=error_model)
+    limits = compute_limits(n1, n2, ku1, kl1, wu, wl, ku2, kl2, g0s_ic)
+    if not is_valid_limits(*limits):
+        return float(H_val)
+    _, beta = compute_P_ooc(n1, n2, *limits, gps)
+    return tarl_from_beta(beta, H_val)
+
+
+# Verifikasi dengan parameter paper (n1=3, n2=25, δ=1.3, θ=0.05, η=0.28)
+t_test = compute_TARL(1.3, 3, 25, 4.5178, 1.9070, 1.5126, 1.9069, 2.5046, 1.9068,
+                      gamma0=0.05, theta=0.05, B=1, m=1, eta=0.28)
+print(f"TARL(δ=1.3, H={H}, paper params): {t_test:.4f}")
+print(f"  (paper melaporkan 73.15 menggunakan ANOS, nilai TARL akan berbeda)")
+
+
+# %% [markdown]
+# ## 6. Genetic Algorithm — Optimasi per Sel Tabel
+# ### Setiap (delta, nilai-parameter) dioptimasi secara INDEPENDEN
 
 # %%
-def optimize_ds_cv_me(cv_0, delta, B, theta, m, TARL0_target=370.4,
-                      condition='constant', omega=0, psi=0, eta=1.0,
-                      n1_range=range(3, 10), n2_range=range(3, 50),
-                      verbose=False):
+def _fitness_sel(chromosome, n1, n2, delta, gamma0, theta, B, m,
+                 eta, omega, phi, error_model, H_val):
     """
-    Fungsi optimasi utama diagram DS CV-ME.
-    
-    Mencari parameter optimal: n1, n2, kU1, kL1, wU, wL, kU2, kL2
-    yang meminimasi TARL_1 (deteksi cepat) dengan TARL_0 ≈ target.
-    
-    Parameters:
-    -----------
-    cv_0 : float - CV in-control (misal 0.2)
-    delta : float - Faktor pergeseran CV (>1 untuk peningkatan)
-    B : float - Slope model kovariat
-    theta : float - Rasio error sigma_M/sigma_X0
-    m : int - Jumlah replikasi pengukuran
-    TARL0_target : float - Target TARL in-control
-    condition : str - 'constant' atau 'linear'
-    omega, psi : float - Parameter untuk linear error
-    eta : float - Faktor pergeseran varians error
-    
+    Fitness function GA: minimasi TARL(δ).
+    Penalti besar jika batas tidak valid.
+    """
+    ku1, kl1, wu, wl, ku2, kl2 = chromosome
+    g0s_ic, _ = get_gamma_stars(1.0, gamma0, theta, B, m,
+                                eta=eta, omega=omega, phi=phi,
+                                error_model=error_model)
+    _, gps    = get_gamma_stars(delta, gamma0, theta, B, m,
+                                eta=eta, omega=omega, phi=phi,
+                                error_model=error_model)
+    limits = compute_limits(n1, n2, ku1, kl1, wu, wl, ku2, kl2, g0s_ic)
+    if not is_valid_limits(*limits):
+        return 1e6
+    _, beta = compute_P_ooc(n1, n2, *limits, gps)
+    return tarl_from_beta(beta, H_val)
+
+
+def _ga_satu(n1, n2, delta, gamma0, theta, B, m,
+             eta, omega, phi, error_model, H_val,
+             bounds, pop_size, n_gen, patience, seed):
+    """GA untuk SATU kombinasi (n1, n2, delta, parameter)."""
+    warnings.filterwarnings("ignore")
+    rng = np.random.default_rng(seed)
+    lo  = np.array([b[0] for b in bounds])
+    hi  = np.array([b[1] for b in bounds])
+
+    pop = [list(rng.uniform(lo, hi)) for _ in range(pop_size)]
+    best_chrom, best_fit, no_imp = None, 1e9, 0
+
+    for _ in range(n_gen):
+        fits = [_fitness_sel(ch, n1, n2, delta, gamma0, theta, B, m,
+                             eta, omega, phi, error_model, H_val)
+                for ch in pop]
+        bi = int(np.argmin(fits))
+        if fits[bi] < best_fit - 1e-7:
+            best_fit, best_chrom, no_imp = fits[bi], pop[bi][:], 0
+        else:
+            no_imp += 1
+        if no_imp >= patience:
+            break
+
+        # Tournament selection (k=3)
+        n   = len(pop)
+        sel = []
+        for _ in range(n):
+            cands = rng.choice(n, size=3, replace=False)
+            sel.append(pop[min(cands, key=lambda i: fits[i])][:])
+
+        # BLX-0.5 crossover
+        offspring = []
+        for i in range(0, n-1, 2):
+            if rng.random() < 0.85:
+                c1, c2 = [], []
+                for g1, g2 in zip(sel[i], sel[i+1]):
+                    span = abs(g2 - g1)
+                    ext  = 0.5 * span
+                    c1.append(float(np.clip(rng.uniform(min(g1,g2)-ext, max(g1,g2)+ext), lo[len(c1)], hi[len(c1)])))
+                    c2.append(float(np.clip(rng.uniform(min(g1,g2)-ext, max(g1,g2)+ext), lo[len(c2)], hi[len(c2)])))
+                offspring.extend([c1, c2])
+            else:
+                offspring.extend([sel[i][:], sel[i+1][:]])
+
+        # Gaussian mutation (rate=15%)
+        for j in range(len(offspring)):
+            for k_idx in range(len(bounds)):
+                if rng.random() < 0.15:
+                    offspring[j][k_idx] = float(np.clip(
+                        offspring[j][k_idx] + rng.normal(0, 0.1*(hi[k_idx]-lo[k_idx])),
+                        lo[k_idx], hi[k_idx]))
+
+        if best_chrom is not None:
+            offspring[0] = best_chrom[:]
+        pop = offspring[:pop_size]
+
+    return best_chrom, best_fit
+
+
+# %% [markdown]
+# ## 7. Optimasi per Sel — Fungsi Utama
+
+# %%
+def _worker_satu_sel(n1, n2, delta, gamma0, theta, B, m,
+                     eta, omega, phi, error_model, H_val,
+                     bounds, pop_size, n_gen, patience, seed):
+    """Worker untuk satu (n1,n2,delta,param) — dipakai oleh joblib."""
+    warnings.filterwarnings("ignore")
+    chrom, fit = _ga_satu(n1, n2, delta, gamma0, theta, B, m,
+                          eta, omega, phi, error_model, H_val,
+                          bounds, pop_size, n_gen, patience, seed)
+    return {'n1': n1, 'n2': n2, 'chrom': chrom, 'tarl': fit}
+
+
+def optimasi_per_sel(delta, gamma0, theta, B, m,
+                     eta=0.0, omega=0.0, phi=0.0,
+                     error_model='constant',
+                     n1_range=None, N_max=N_MAX, H_val=H,
+                     bounds=None, pop_size=POP_SIZE,
+                     n_gen=N_GENERATIONS, patience=PATIENCE,
+                     n_jobs=N_JOBS):
+    """
+    Cari parameter optimal untuk SATU nilai delta.
+    Jalankan GA pada semua kombinasi (n1, n2) secara paralel.
+    Pilih kombinasi yang menghasilkan TARL terkecil.
+    """
+    if n1_range is None: n1_range = N1_RANGE
+    if bounds   is None: bounds   = DEFAULT_BOUNDS
+
+    kombinasi = [(n1, n2)
+                 for n1 in n1_range
+                 for n2 in range(N0, N_max + 1)
+                 if n1 + n2 <= N_max]
+
+    results = Parallel(n_jobs=n_jobs, verbose=0, backend='loky')(
+        delayed(_worker_satu_sel)(
+            n1, n2, delta, gamma0, theta, B, m,
+            eta, omega, phi, error_model, H_val,
+            bounds, pop_size, n_gen, patience,
+            seed=42 + n1*100 + n2
+        )
+        for n1, n2 in kombinasi
+    )
+
+    # Pilih kombinasi dengan TARL terkecil
+    valid = [r for r in results if r['chrom'] is not None]
+    if not valid:
+        return None
+    best = min(valid, key=lambda r: r['tarl'])
+    best['koef'] = {k: v for k, v in
+                    zip(['ku1','kl1','wu','wl','ku2','kl2'], best['chrom'])}
+    return best
+
+
+# %% [markdown]
+# ## 8. Buat Tabel Jurnal — Optimasi Independen per Sel
+# ### Format: setiap sel (δ × kolom-parameter) = parameter optimal berbeda
+
+# %%
+def buat_tabel_jurnal(
+        variasi_param,
+        nama_param,
+        base_params,
+        error_model='constant',
+        delta_list=None,
+        n1_range=None,
+        N_max=N_MAX,
+        H_val=H,
+        bounds=None,
+        pop_size=POP_SIZE,
+        n_gen=N_GENERATIONS,
+        patience=PATIENCE,
+        n_jobs=N_JOBS,
+        verbose=True,
+):
+    """
+    Buat tabel di mana SETIAP sel (delta × nilai_param) dioptimasi INDEPENDEN.
+
+    Setiap sel menghasilkan parameter optimal (n1,n2,ku1,kl1,wu,wl,ku2,kl2)
+    dan TARL yang berbeda-beda.
+
+    Args:
+        variasi_param : list nilai kolom, misal [0, 0.01, 0.03, 0.05]
+        nama_param    : nama parameter kolom, misal 'theta'
+        base_params   : dict parameter tetap (keys: gamma0,theta,eta,omega,phi,B,m)
+        error_model   : 'constant' atau 'linear'
+
     Returns:
-    --------
-    best : dict - Parameter optimal dan nilai TARL
+        hasil[delta][val_param] = {n1, n2, koef, tarl}
     """
-    best_TARL1 = 1e10
-    best_params = None
-    
-    for n1 in n1_range:
-        for n2 in n2_range:
-            if n2 < n1:
+    if delta_list is None: delta_list = DELTA_LIST
+    if n1_range   is None: n1_range   = N1_RANGE
+    if bounds     is None: bounds     = DEFAULT_BOUNDS
+
+    semua_sel = list(itertools.product(delta_list, variasi_param))
+
+    if verbose:
+        tetap = {k:v for k,v in base_params.items() if k != nama_param}
+        print(f"\n{'═'*65}")
+        print(f"  OPTIMASI: variasi {nama_param} | model: {error_model}")
+        print(f"  Parameter tetap: " + ", ".join(f"{k}={v}" for k,v in tetap.items()))
+        print(f"  {len(semua_sel)} sel = {len(delta_list)} δ × {len(variasi_param)} kolom")
+        print(f"{'═'*65}")
+
+    t0 = time.time()
+
+    def _optimasi_satu_sel(delta, val_param):
+        warnings.filterwarnings("ignore")
+        p = dict(base_params)
+        p[nama_param] = val_param
+        return optimasi_per_sel(
+            delta=delta,
+            gamma0=p.get('gamma0', GAMMA_0),
+            theta =p.get('theta',  0.0),
+            B     =p.get('B',      1),
+            m     =p.get('m',      1),
+            eta   =p.get('eta',    0.0),
+            omega =p.get('omega',  0.0),
+            phi   =p.get('phi',    0.0),
+            error_model=error_model,
+            n1_range=n1_range, N_max=N_max, H_val=H_val,
+            bounds=bounds, pop_size=pop_size,
+            n_gen=n_gen, patience=patience,
+            n_jobs=1,   # paralel sudah di luar
+        )
+
+    # Paralel per sel tabel
+    results_flat = Parallel(n_jobs=n_jobs, verbose=0, backend='loky')(
+        delayed(_optimasi_satu_sel)(delta, val)
+        for delta, val in semua_sel
+    )
+
+    elapsed = time.time() - t0
+    if verbose:
+        print(f"  ✅ Selesai! Waktu: {elapsed/60:.1f} menit\n")
+
+    # Susun hasil: hasil[delta][val_param]
+    hasil = {}
+    for (delta, val), res in zip(semua_sel, results_flat):
+        hasil.setdefault(delta, {})[val] = res
+
+    return hasil
+
+
+# %% [markdown]
+# ## 9. Cetak Tabel Format Jurnal JQMA
+
+# %%
+def cetak_tabel_jurnal(hasil, variasi_param, nama_param,
+                       delta_list=None, judul=""):
+    """
+    Cetak tabel persis format paper JQMA.
+    Setiap sel menampilkan:
+      n1, n2, ku1, kl1,
+      wu, wl,
+      ku2, kl2
+      (TARL)
+    """
+    if delta_list is None:
+        delta_list = sorted(hasil.keys())
+
+    lebar = 26
+    n_col = len(variasi_param)
+    sep   = "─" * (10 + lebar * n_col)
+
+    if judul:
+        print(f"\n  {judul}")
+    print(sep)
+    # Header kolom
+    header = f"{'δ':^10}" + "".join(
+        f"{f'{nama_param}={v}':^{lebar}}" for v in variasi_param)
+    print(header)
+    print(sep)
+
+    for delta in delta_list:
+        baris = [["", "", "", ""] for _ in variasi_param]
+        for ci, val in enumerate(variasi_param):
+            res = hasil.get(delta, {}).get(val)
+            if res is None or res.get('chrom') is None:
+                baris[ci] = ["N/A", "", "", ""]
                 continue
-            
-            # Bounds untuk koefisien [kU1, kL1, wU, wL, kU2, kL2]
-            # kU1 > wU > 1 (biasanya 1.5 - 10)
-            # wL < 1 < wU
-            # kL1 < wL < 1
-            bounds = [
-                (1.5, 10.0),    # kU1_coef: batas atas kontrol (> 1)
-                (0.01, 0.99),   # kL1_coef: batas bawah kontrol (< 1) 
-                (1.01, 8.0),    # wU_coef: batas atas warning (> 1)
-                (0.1, 0.999),   # wL_coef: batas bawah warning (< 1)
-                (1.5, 10.0),    # kU2_coef: batas atas kontrol tahap 2
-                (0.01, 0.99),   # kL2_coef: batas bawah kontrol tahap 2
+            n1, n2  = res['n1'], res['n2']
+            k       = res['koef']
+            tarl_v  = res['tarl']
+            baris[ci] = [
+                f"{n1}, {n2}, {k['ku1']:.4f}, {k['kl1']:.4f},",
+                f"{k['wu']:.4f}, {k['wl']:.4f},",
+                f"{k['ku2']:.4f}, {k['kl2']:.4f}",
+                f"({tarl_v:.2f})",
             ]
-            
-            try:
-                result = differential_evolution(
-                    objective_ds_cv,
-                    bounds=bounds,
-                    args=(n1, n2, cv_0, delta, B, theta, m,
-                          TARL0_target, condition, omega, psi, eta),
-                    maxiter=300,
-                    tol=1e-8,
-                    seed=42,
-                    polish=True,
-                    popsize=15,
-                    mutation=(0.5, 1.5),
-                    recombination=0.8,
-                    init='sobol'
-                )
-                
-                if result.fun < best_TARL1 and result.fun < 1e9:
-                    # Verifikasi solusi
-                    kU1_c, kL1_c, wU_c, wL_c, kU2_c, kL2_c = result.x
-                    
-                    # Cek urutan
-                    if kL1_c < wL_c < wU_c < kU1_c and kL2_c < kU2_c:
-                        # Hitung TARL_0 untuk verifikasi
-                        kU1 = kU1_c * cv_0
-                        kL1 = kL1_c * cv_0
-                        wU = wU_c * cv_0
-                        wL = wL_c * cv_0
-                        kU2 = kU2_c * cv_0
-                        kL2 = kL2_c * cv_0
-                        
-                        if condition == 'constant':
-                            cv_obs_0 = cv_observed_constant(cv_0, 1.0, B, theta, m, eta)
-                        else:
-                            cv_obs_0 = cv_observed_linear(cv_0, 1.0, B, theta, m, omega, psi, eta)
-                        
-                        TARL_0 = compute_TARL(n1, n2, kL1, kU1, wL, wU, kL2, kU2, cv_obs_0)
-                        
-                        if TARL_0 >= TARL0_target * 0.95:
-                            best_TARL1 = result.fun
-                            best_params = {
-                                'n1': n1, 'n2': n2,
-                                'kU1': round(kU1_c, 4),
-                                'kL1': round(kL1_c, 4),
-                                'wU': round(wU_c, 4),
-                                'wL': round(wL_c, 4),
-                                'kU2': round(kU2_c, 4),
-                                'kL2': round(kL2_c, 4),
-                                'TARL_0': round(TARL_0, 2),
-                                'TARL_1': round(best_TARL1, 2)
-                            }
-                            if verbose:
-                                print(f"    n1={n1}, n2={n2}: TARL_1={best_TARL1:.2f}, TARL_0={TARL_0:.2f}")
-            
-            except Exception:
-                continue
-    
-    if best_params is None:
-        best_params = {
-            'n1': None, 'n2': None,
-            'kU1': None, 'kL1': None,
-            'wU': None, 'wL': None,
-            'kU2': None, 'kL2': None,
-            'TARL_0': None, 'TARL_1': None
-        }
-    
-    return best_params
+
+        # Cetak 4 baris per delta
+        prefix = [f"{delta:<10.4f}", " "*10, " "*10, " "*10]
+        for row_idx in range(4):
+            line = prefix[row_idx]
+            for ci in range(n_col):
+                line += f"{baris[ci][row_idx]:^{lebar}}"
+            print(line)
+        print()   # baris kosong antara delta
+
+    print(sep)
 
 
-# %% [markdown]
-# ## 6. Generasi Tabel Hasil (Format Jurnal)
-#
-# Tabel mengikuti format dari gambar referensi:
-# - Header: ω = φ = 0 dan m = B = 1
-# - Baris: δ = {1.01, 1.05, 1.2, 1.3}
-# - Kolom: θ = {0, 0.01, 0.03, 0.05}
-# - Isi: n1, n2, kU1, kL1, wU, wL, kU2, kL2, (TARL)
+def cetak_tabel_df(hasil, variasi_param, nama_param, delta_list=None):
+    """DataFrame pandas dari hasil optimasi."""
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas tidak tersedia"); return None
 
-# %%
-def run_full_optimization(cv_0=0.2, B=1, m=1, omega=0, psi=0, eta=1.0,
-                           TARL0_target=370.4, condition='constant',
-                           delta_values=[1.01, 1.05, 1.2, 1.3],
-                           theta_values=[0, 0.01, 0.03, 0.05],
-                           n1_range=range(3, 7), n2_range=range(5, 35)):
-    """
-    Menjalankan optimasi penuh dan menghasilkan tabel hasil.
-    """
-    results = {}
-    
-    header = f"ω={omega}, ψ={psi}, m={m}, B={B}"
-    print(f"\n{'═'*90}")
-    print(f"  OPTIMASI DS CV-ME | Kondisi: {condition.upper()}")
-    print(f"  {header} | CV_0={cv_0} | TARL_0 target={TARL0_target}")
-    print(f"{'═'*90}")
-    
-    total = len(delta_values) * len(theta_values)
-    count = 0
-    
-    for delta in delta_values:
-        results[delta] = {}
-        for theta in theta_values:
-            count += 1
-            print(f"\n  [{count}/{total}] δ={delta}, θ={theta} ... ", end="", flush=True)
-            
-            res = optimize_ds_cv_me(
-                cv_0=cv_0, delta=delta, B=B, theta=theta, m=m,
-                TARL0_target=TARL0_target, condition=condition,
-                omega=omega, psi=psi, eta=eta,
-                n1_range=n1_range, n2_range=n2_range,
-                verbose=False
-            )
-            
-            results[delta][theta] = res
-            
-            if res['n1'] is not None:
-                print(f"✓ n1={res['n1']}, n2={res['n2']}, TARL_1={res['TARL_1']:.2f}")
-            else:
-                print("✗ Tidak ditemukan solusi feasible")
-    
-    print(f"\n{'═'*90}")
-    print("  OPTIMASI SELESAI")
-    print(f"{'═'*90}")
-    
-    return results
+    if delta_list is None:
+        delta_list = sorted(hasil.keys())
 
-
-# %% [markdown]
-# ## 7. Fungsi Tampilan Tabel (Persis Format Jurnal)
-
-# %%
-def print_journal_table(results, delta_values, theta_values,
-                         omega=0, psi=0, m=1, B=1):
-    """
-    Mencetak tabel dalam format PERSIS sesuai jurnal (gambar referensi).
-    
-    Format setiap sel:
-    Baris 1: n1, n2, kU1, kL1,
-    Baris 2: wU, wL,
-    Baris 3: kU2, kL2
-    Baris 4: (TARL_1) [dalam kurung]
-    """
-    # Title
-    if psi == 0 and omega == 0:
-        header = f"ω = φ = 0 and m = B = {B}"
-    else:
-        header = f"ω = {omega}, ψ = {psi} and m = {m}, B = {B}"
-    
-    col_width = 24
-    total_width = 10 + col_width * len(theta_values)
-    
-    print(f"\n{'─'*total_width}")
-    print(f"{'δ':^10}{header:^{col_width * len(theta_values)}}")
-    print(f"{'─'*total_width}")
-    
-    # Sub-header: theta values
-    print(f"{'':^10}", end="")
-    for theta in theta_values:
-        print(f"{'θ = '+str(theta):^{col_width}}", end="")
-    print(f"\n{'─'*total_width}")
-    
-    for delta in delta_values:
-        # Baris 1: n1, n2, kU1, kL1
-        line = f"{delta:<10.2f}"
-        for theta in theta_values:
-            r = results[delta][theta]
-            if r['n1'] is not None:
-                cell = f"{r['n1']}, {r['n2']}, {r['kU1']}, {r['kL1']},"
-            else:
-                cell = "N/A"
-            line += f"{cell:^{col_width}}"
-        print(line)
-        
-        # Baris 2: wU, wL,
-        line = f"{'':10}"
-        for theta in theta_values:
-            r = results[delta][theta]
-            if r['n1'] is not None:
-                cell = f"{r['wU']}, {r['wL']},"
-            else:
-                cell = ""
-            line += f"{cell:^{col_width}}"
-        print(line)
-        
-        # Baris 3: kU2, kL2
-        line = f"{'':10}"
-        for theta in theta_values:
-            r = results[delta][theta]
-            if r['n1'] is not None:
-                cell = f"{r['kU2']}, {r['kL2']}"
-            else:
-                cell = ""
-            line += f"{cell:^{col_width}}"
-        print(line)
-        
-        # Baris 4: (TARL) dalam kurung italic
-        line = f"{'':10}"
-        for theta in theta_values:
-            r = results[delta][theta]
-            if r['TARL_1'] is not None:
-                cell = f"({r['TARL_1']:.2f})"
-            else:
-                cell = ""
-            line += f"{cell:^{col_width}}"
-        print(line)
-        print()  # separator antar delta
-    
-    print(f"{'─'*total_width}")
-
-
-def results_to_dataframe(results, delta_values, theta_values, condition_name):
-    """
-    Konversi hasil ke pandas DataFrame untuk export.
-    """
     rows = []
-    for delta in delta_values:
-        for theta in theta_values:
-            r = results[delta][theta]
-            if r['n1'] is not None:
-                rows.append({
-                    'Kondisi': condition_name,
-                    'δ (delta)': delta,
-                    'θ (theta)': theta,
-                    'n1': r['n1'],
-                    'n2': r['n2'],
-                    'kU1': r['kU1'],
-                    'kL1': r['kL1'],
-                    'wU': r['wU'],
-                    'wL': r['wL'],
-                    'kU2': r['kU2'],
-                    'kL2': r['kL2'],
-                    'TARL_0': r['TARL_0'],
-                    'TARL_1': r['TARL_1']
-                })
+    for delta in delta_list:
+        for val in variasi_param:
+            res = hasil.get(delta, {}).get(val)
+            if res is None or res.get('chrom') is None:
+                continue
+            k = res['koef']
+            rows.append({
+                'delta'    : delta,
+                nama_param : val,
+                'n1'       : res['n1'],
+                'n2'       : res['n2'],
+                'ku1'      : round(k['ku1'], 4),
+                'kl1'      : round(k['kl1'], 4),
+                'wu'       : round(k['wu'],  4),
+                'wl'       : round(k['wl'],  4),
+                'ku2'      : round(k['ku2'], 4),
+                'kl2'      : round(k['kl2'], 4),
+                'TARL'     : round(res['tarl'], 4),
+            })
     return pd.DataFrame(rows)
 
 
 # %% [markdown]
-# ## 8. Fungsi Visualisasi
+# ## 10. Tabel 1 — Model A: Variasi θ | η=0.28, m=B=1
 
 # %%
-def plot_tarl_comparison(results_const, results_linear, 
-                          delta_values, theta_values, cv_0=0.2):
+print("=" * 65)
+print("TABEL 1 — Model A (Constant Error)")
+print("Variasi θ | η=0.28, m=1, B=1")
+print("=" * 65)
+
+theta_list = [0, 0.01, 0.03, 0.05]
+
+hasil_A_theta = buat_tabel_jurnal(
+    variasi_param = theta_list,
+    nama_param    = 'theta',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.0,
+                     'eta': 0.28, 'B': 1, 'm': 1},
+    error_model   = 'constant',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_A_theta, theta_list, 'θ',
+                   judul="Model A | η=0.28, m=B=1 | variasi θ")
+
+df_A_theta = cetak_tabel_df(hasil_A_theta, theta_list, 'theta')
+if df_A_theta is not None:
+    print(df_A_theta.to_string(index=False))
+
+# %% [markdown]
+# ## 11. Tabel 1 — Model A: Variasi η | θ=0, m=B=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 1 — Model A: Variasi η | θ=0, m=1, B=1")
+print("=" * 65)
+
+eta_list = [0, 0.1, 0.3, 0.5]
+
+hasil_A_eta = buat_tabel_jurnal(
+    variasi_param = eta_list,
+    nama_param    = 'eta',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.0,
+                     'eta': 0.0, 'B': 1, 'm': 1},
+    error_model   = 'constant',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_A_eta, eta_list, 'η',
+                   judul="Model A | θ=0, m=B=1 | variasi η")
+
+
+# %% [markdown]
+# ## 12. Tabel 1 — Model A: Variasi m | θ=0.05, η=0.28, B=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 1 — Model A: Variasi m | θ=0.05, η=0.28, B=1")
+print("=" * 65)
+
+m_list = [1, 3, 5, 7]
+
+hasil_A_m = buat_tabel_jurnal(
+    variasi_param = m_list,
+    nama_param    = 'm',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.05,
+                     'eta': 0.28, 'B': 1, 'm': 1},
+    error_model   = 'constant',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_A_m, m_list, 'm',
+                   judul="Model A | θ=0.05, η=0.28, B=1 | variasi m")
+
+# %% [markdown]
+# ## 13. Tabel 1 — Model A: Variasi B | θ=0.05, η=0.28, m=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 1 — Model A: Variasi B | θ=0.05, η=0.28, m=1")
+print("=" * 65)
+
+B_list = [1, 2, 3, 4]
+
+hasil_A_B = buat_tabel_jurnal(
+    variasi_param = B_list,
+    nama_param    = 'B',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.05,
+                     'eta': 0.28, 'B': 1, 'm': 1},
+    error_model   = 'constant',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_A_B, B_list, 'B',
+                   judul="Model A | θ=0.05, η=0.28, m=1 | variasi B")
+
+
+# %% [markdown]
+# ## 14. Tabel 3 — Model B: Variasi θ | ω=φ=0, m=B=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 3 — Model B (Linear Error Variance)")
+print("Variasi θ | ω=φ=0, m=B=1")
+print("=" * 65)
+
+hasil_B_theta = buat_tabel_jurnal(
+    variasi_param = theta_list,
+    nama_param    = 'theta',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.0,
+                     'omega': 0.0, 'phi': 0.0, 'B': 1, 'm': 1},
+    error_model   = 'linear',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_B_theta, theta_list, 'θ',
+                   judul="Model B | ω=φ=0, m=B=1 | variasi θ")
+
+# %% [markdown]
+# ## 15. Tabel 3 — Model B: Variasi ω | θ=φ=0, m=B=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 3 — Model B: Variasi ω | θ=φ=0, m=B=1")
+print("=" * 65)
+
+omega_list = [0.0, 0.1, 0.2, 0.3]
+
+hasil_B_omega = buat_tabel_jurnal(
+    variasi_param = omega_list,
+    nama_param    = 'omega',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.0,
+                     'omega': 0.0, 'phi': 0.0, 'B': 1, 'm': 1},
+    error_model   = 'linear',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_B_omega, omega_list, 'ω',
+                   judul="Model B | θ=φ=0, m=B=1 | variasi ω")
+
+
+# %% [markdown]
+# ## 16. Tabel 3 — Model B: Variasi φ | θ=ω=0, m=B=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 3 — Model B: Variasi φ | θ=ω=0, m=B=1")
+print("=" * 65)
+
+phi_list = [0.0, 0.1, 0.2, 0.3]
+
+hasil_B_phi = buat_tabel_jurnal(
+    variasi_param = phi_list,
+    nama_param    = 'phi',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.0,
+                     'omega': 0.0, 'phi': 0.0, 'B': 1, 'm': 1},
+    error_model   = 'linear',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_B_phi, phi_list, 'φ',
+                   judul="Model B | θ=ω=0, m=B=1 | variasi φ")
+
+# %% [markdown]
+# ## 17. Tabel 3 — Model B: Variasi m | θ=0.05, ω=φ=0.1, B=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 3 — Model B: Variasi m | θ=0.05, ω=φ=0.1, B=1")
+print("=" * 65)
+
+hasil_B_m = buat_tabel_jurnal(
+    variasi_param = m_list,
+    nama_param    = 'm',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.05,
+                     'omega': 0.1, 'phi': 0.1, 'B': 1, 'm': 1},
+    error_model   = 'linear',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_B_m, m_list, 'm',
+                   judul="Model B | θ=0.05, ω=φ=0.1, B=1 | variasi m")
+
+# %% [markdown]
+# ## 18. Tabel 3 — Model B: Variasi B | θ=0.05, ω=φ=0.1, m=1
+
+# %%
+print("\n" + "=" * 65)
+print("TABEL 3 — Model B: Variasi B | θ=0.05, ω=φ=0.1, m=1")
+print("=" * 65)
+
+hasil_B_B = buat_tabel_jurnal(
+    variasi_param = B_list,
+    nama_param    = 'B',
+    base_params   = {'gamma0': GAMMA_0, 'theta': 0.05,
+                     'omega': 0.1, 'phi': 0.1, 'B': 1, 'm': 1},
+    error_model   = 'linear',
+    verbose=True,
+)
+
+cetak_tabel_jurnal(hasil_B_B, B_list, 'B',
+                   judul="Model B | θ=0.05, ω=φ=0.1, m=1 | variasi B")
+
+
+# %% [markdown]
+# ## 19. Visualisasi Perbandingan TARL
+
+# %%
+import matplotlib.pyplot as plt
+
+def plot_perbandingan_tarl(hasil_dict, delta_list=None, judul=""):
     """
-    Grafik perbandingan TARL antara Constant Error vs Linear Error.
+    Plot TARL vs delta untuk semua variasi parameter dalam satu tabel.
+    hasil_dict: {label: (hasil, variasi_param, nama_param)}
     """
-    n_theta = len(theta_values)
-    fig, axes = plt.subplots(1, n_theta, figsize=(5*n_theta, 5), sharey=True)
-    if n_theta == 1:
+    if delta_list is None:
+        delta_list = DELTA_LIST
+
+    n_plot = len(hasil_dict)
+    fig, axes = plt.subplots(1, n_plot, figsize=(5*n_plot, 5), sharey=False)
+    if n_plot == 1:
         axes = [axes]
-    
-    for idx, theta in enumerate(theta_values):
-        ax = axes[idx]
-        
-        # Constant Error
-        tarl_c = [results_const[d][theta]['TARL_1'] 
-                  if results_const[d][theta]['TARL_1'] is not None else np.nan 
-                  for d in delta_values]
-        
-        # Linear Error
-        tarl_l = [results_linear[d][theta]['TARL_1'] 
-                  if results_linear[d][theta]['TARL_1'] is not None else np.nan 
-                  for d in delta_values]
-        
-        ax.plot(delta_values, tarl_c, 'bo-', lw=2, ms=8, label='Constant Error')
-        ax.plot(delta_values, tarl_l, 'rs--', lw=2, ms=8, label='Linear Error')
-        
-        ax.set_xlabel('δ (Shift Factor)', fontsize=11)
-        if idx == 0:
-            ax.set_ylabel('TARL₁ (Out-of-Control)', fontsize=11)
-        ax.set_title(f'θ = {theta}', fontsize=12, fontweight='bold')
-        ax.legend(fontsize=9)
+
+    colors = plt.cm.tab10(np.linspace(0, 0.9, 6))
+
+    for ax_idx, (label, (hasil, variasi_param, nama_param)) in enumerate(hasil_dict.items()):
+        ax = axes[ax_idx]
+        for ci, val in enumerate(variasi_param):
+            tarl_vals, delta_ok = [], []
+            for delta in delta_list:
+                res = hasil.get(delta, {}).get(val)
+                if res and res.get('chrom'):
+                    tarl_vals.append(res['tarl'])
+                    delta_ok.append(delta)
+            if tarl_vals:
+                ax.plot(delta_ok, tarl_vals, 'o-',
+                        color=colors[ci % len(colors)],
+                        lw=2, ms=6,
+                        label=f'{nama_param}={val}')
+
+        ax.set_title(label, fontsize=11, fontweight='bold')
+        ax.set_xlabel('δ (Shift)', fontsize=10)
+        ax.set_ylabel('TARL', fontsize=10)
+        ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
         ax.set_yscale('log')
-    
-    plt.suptitle(f'Perbandingan TARL: Constant vs Linear Variance Error\n'
-                 f'CV₀ = {cv_0}', fontsize=13, y=1.03)
-    plt.tight_layout()
-    plt.savefig('tarl_comparison_const_vs_linear.png', dpi=150, bbox_inches='tight')
-    plt.show()
-    print("Grafik disimpan: tarl_comparison_const_vs_linear.png")
 
-
-def plot_tarl_single_condition(results, delta_values, theta_values, 
-                                condition_name, cv_0=0.2):
-    """
-    Plot TARL vs delta untuk satu kondisi dengan berbagai theta.
-    """
-    fig, ax = plt.subplots(figsize=(9, 6))
-    
-    markers = ['o', 's', '^', 'D', 'v', '<']
-    colors = plt.cm.tab10(np.linspace(0, 1, len(theta_values)))
-    
-    for idx, theta in enumerate(theta_values):
-        tarl_vals = [results[d][theta]['TARL_1'] 
-                     if results[d][theta]['TARL_1'] is not None else np.nan 
-                     for d in delta_values]
-        
-        ax.plot(delta_values, tarl_vals,
-                marker=markers[idx % len(markers)],
-                color=colors[idx],
-                lw=2, ms=9, label=f'θ = {theta}')
-    
-    ax.set_xlabel('δ (Shift Factor / Pergeseran CV)', fontsize=12)
-    ax.set_ylabel('TARL₁ (Out-of-Control)', fontsize=12)
-    ax.set_title(f'TARL vs Pergeseran CV\nKondisi: {condition_name} | CV₀ = {cv_0}',
-                 fontsize=13)
-    ax.legend(fontsize=11, title='Rasio Error (θ)', title_fontsize=11)
-    ax.grid(True, alpha=0.3)
-    ax.set_yscale('log')
-    
+    if judul:
+        plt.suptitle(judul, fontsize=13, y=1.02)
     plt.tight_layout()
-    fname = f'tarl_vs_delta_{condition_name.lower().replace(" ", "_")}.png'
+    fname = 'tarl_comparison.png'
     plt.savefig(fname, dpi=150, bbox_inches='tight')
     plt.show()
     print(f"Grafik disimpan: {fname}")
 
 
-# %% [markdown]
-# ## 9. EKSEKUSI - Kondisi 1: Constant Variance Error
-#
-# Parameter:
-# - ω = φ = 0 (tidak ada komponen linear)
-# - m = B = 1 (satu pengukuran, slope = 1)
-# - CV_0 = 0.2 (gamma_0 = 5)
-# - TARL_0 target = 370.4
-
-# %%
-# ===================== PARAMETER UTAMA =====================
-cv_0 = 0.2           # CV in-control
-B = 1                # Slope model kovariat
-m = 1                # Jumlah replikasi
-TARL0_target = 370.4 # Target TARL in-control
-
-# Nilai yang akan dievaluasi
-delta_values = [1.01, 1.05, 1.2, 1.3]
-theta_values = [0, 0.01, 0.03, 0.05]
-
-# Rentang pencarian
-n1_range = range(3, 6)    # n1 kecil (3-5)
-n2_range = range(15, 35)  # n2 lebih besar
-
-# === KONDISI 1: CONSTANT ERROR ===
-print("\n" + "█"*70)
-print("█  KONDISI 1: CONSTANT VARIANCE ERROR")
-print("█  e_ij ~ N(0, sigma_M^2), sigma_M = theta * sigma_X0")
-print("█"*70)
-
-results_constant = run_full_optimization(
-    cv_0=cv_0, B=B, m=m, omega=0, psi=0,
-    TARL0_target=TARL0_target, condition='constant',
-    delta_values=delta_values, theta_values=theta_values,
-    n1_range=n1_range, n2_range=n2_range
+# Plot perbandingan Model A vs Model B untuk variasi θ
+plot_perbandingan_tarl(
+    {
+        'Model A — variasi θ': (hasil_A_theta, theta_list, 'θ'),
+        'Model B — variasi θ': (hasil_B_theta, theta_list, 'θ'),
+    },
+    judul="Perbandingan TARL: Model A vs Model B",
 )
 
-# %%
-# Tampilkan tabel format jurnal - Kondisi 1
-print("\n\n" + "="*90)
-print("  TABEL HASIL - KONDISI 1: CONSTANT VARIANCE ERROR")
-print("="*90)
-print_journal_table(results_constant, delta_values, theta_values,
-                    omega=0, psi=0, m=m, B=B)
-
 
 # %% [markdown]
-# ## 10. EKSEKUSI - Kondisi 2: Linear Variance Error
-#
-# Parameter tambahan:
-# - omega = 0.1 (koefisien C_0)
-# - psi = 0.05 (koefisien C_1, sensitivitas terhadap mean)
-# - sigma_M_j = omega*sigma_X0 + psi*mu_X
+# ## 20. Simpan Semua Hasil ke CSV
 
 # %%
-# === KONDISI 2: LINEAR ERROR ===
-omega = 0.1   # C_0 coefficient
-psi = 0.05    # C_1 coefficient
+import os
+import pandas as pd
 
-print("\n\n" + "█"*70)
-print("█  KONDISI 2: LINEAR VARIANCE ERROR")
-print("█  sigma_M = omega*sigma_X0 + psi*mu_X")
-print(f"█  omega={omega}, psi={psi}")
-print("█"*70)
-
-results_linear = run_full_optimization(
-    cv_0=cv_0, B=B, m=m, omega=omega, psi=psi,
-    TARL0_target=TARL0_target, condition='linear',
-    delta_values=delta_values, theta_values=theta_values,
-    n1_range=n1_range, n2_range=n2_range
-)
-
-# %%
-# Tampilkan tabel format jurnal - Kondisi 2
-print("\n\n" + "="*90)
-print("  TABEL HASIL - KONDISI 2: LINEAR VARIANCE ERROR")
-print("="*90)
-print_journal_table(results_linear, delta_values, theta_values,
-                    omega=omega, psi=psi, m=m, B=B)
+def simpan_semua(semua_hasil, output_dir='.'):
+    """Simpan semua hasil ke CSV."""
+    os.makedirs(output_dir, exist_ok=True)
+    for fname, (hasil, variasi_param, nama_param) in semua_hasil.items():
+        df = cetak_tabel_df(hasil, variasi_param, nama_param)
+        if df is not None:
+            path = os.path.join(output_dir, f"{fname}.csv")
+            df.to_csv(path, index=False)
+            print(f"  ✓ {path}  ({len(df)} baris)")
 
 
-# %% [markdown]
-# ## 11. Visualisasi Hasil
-
-# %%
-# Plot untuk Kondisi 1
-plot_tarl_single_condition(results_constant, delta_values, theta_values,
-                            condition_name='Constant Error', cv_0=cv_0)
-
-# %%
-# Plot untuk Kondisi 2
-plot_tarl_single_condition(results_linear, delta_values, theta_values,
-                            condition_name='Linear Error', cv_0=cv_0)
-
-# %%
-# Plot perbandingan Constant vs Linear
-plot_tarl_comparison(results_constant, results_linear,
-                      delta_values, theta_values, cv_0=cv_0)
-
-# %% [markdown]
-# ## 12. Tabel DataFrame Gabungan dan Export
-
-# %%
-# Buat DataFrame
-df_const = results_to_dataframe(results_constant, delta_values, theta_values, 'Constant')
-df_lin = results_to_dataframe(results_linear, delta_values, theta_values, 'Linear')
-df_all = pd.concat([df_const, df_lin], ignore_index=True)
-
-# Tampilkan
-print("\n" + "="*110)
-print("  TABEL RINGKASAN LENGKAP (DataFrame)")
-print("="*110)
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 120)
-print(df_all.to_string(index=False))
-
-# Export ke CSV
-df_all.to_csv('ds_cv_me_results.csv', index=False)
-print("\n\nHasil disimpan ke: ds_cv_me_results.csv")
-
-
-# %% [markdown]
-# ## 13. Analisis Tambahan: Pengaruh Jumlah Replikasi (m)
-
-# %%
-def analyze_replication_effect(cv_0=0.2, B=1, delta=1.2, theta=0.05,
-                                m_values=[1, 2, 3, 5], TARL0_target=370.4):
-    """
-    Analisis pengaruh jumlah replikasi (m) terhadap performa TARL.
-    Lebih banyak replikasi → error berkurang → deteksi lebih baik.
-    """
-    print(f"\n{'='*60}")
-    print(f"  ANALISIS PENGARUH REPLIKASI (m)")
-    print(f"  delta={delta}, theta={theta}, CV_0={cv_0}")
-    print(f"{'='*60}")
-    
-    results_m = {}
-    for m_val in m_values:
-        print(f"\n  m={m_val}...", end=" ", flush=True)
-        res = optimize_ds_cv_me(
-            cv_0=cv_0, delta=delta, B=B, theta=theta, m=m_val,
-            TARL0_target=TARL0_target, condition='constant',
-            n1_range=range(3, 6), n2_range=range(15, 30),
-            verbose=False
-        )
-        results_m[m_val] = res
-        if res['TARL_1'] is not None:
-            print(f"TARL_1 = {res['TARL_1']:.2f}")
-        else:
-            print("N/A")
-    
-    # Plot
-    m_vals = [m for m in m_values if results_m[m]['TARL_1'] is not None]
-    tarl_vals = [results_m[m]['TARL_1'] for m in m_vals]
-    
-    if m_vals:
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.bar(range(len(m_vals)), tarl_vals, color='steelblue', alpha=0.8)
-        ax.set_xticks(range(len(m_vals)))
-        ax.set_xticklabels([f'm={m}' for m in m_vals])
-        ax.set_ylabel('TARL₁', fontsize=12)
-        ax.set_title(f'Pengaruh Replikasi terhadap TARL₁\nδ={delta}, θ={theta}', fontsize=13)
-        ax.grid(True, alpha=0.3, axis='y')
-        
-        for i, v in enumerate(tarl_vals):
-            ax.text(i, v + 0.5, f'{v:.1f}', ha='center', fontsize=10)
-        
-        plt.tight_layout()
-        plt.savefig('replication_effect.png', dpi=150, bbox_inches='tight')
-        plt.show()
-    
-    return results_m
-
-# Jalankan analisis replikasi
-results_replication = analyze_replication_effect()
-
-# %% [markdown]
-# ## 14. Kesimpulan
-#
-# ### Temuan Utama:
-# 1. **Measurement Error meningkatkan TARL₁** (menurunkan kemampuan deteksi):
-#    - Semakin besar θ, semakin sulit mendeteksi pergeseran CV
-#    - Efek lebih terasa pada pergeseran kecil (δ mendekati 1)
-#
-# 2. **Linear Error vs Constant Error**:
-#    - Linear error umumnya memberikan TARL₁ lebih tinggi
-#    - Karena varians error berubah seiring mean, menambah ketidakpastian
-#
-# 3. **Multiple Measurements (m > 1)**:
-#    - Mengurangi dampak measurement error
-#    - Menurunkan TARL₁ mendekati kasus tanpa error (θ=0)
-#
-# 4. **Double Sampling**:
-#    - Efisien dalam hal sampling (ASS rendah)
-#    - Tahap 2 memberikan "second chance" untuk konfirmasi
-
-# %%
-print("\n" + "═"*70)
-print("  SIMULASI DS CV-ME SELESAI")
-print("═"*70)
-print("\n  File output yang dihasilkan:")
-print("  ├── ds_cv_me_results.csv")
-print("  ├── tarl_comparison_const_vs_linear.png")
-print("  ├── tarl_vs_delta_constant_error.png")
-print("  ├── tarl_vs_delta_linear_error.png")
-print("  └── replication_effect.png")
-print("\n  Parameter optimal tersimpan dalam variabel:")
-print("  ├── results_constant (dict)")
-print("  └── results_linear (dict)")
+print("Menyimpan semua hasil...")
+simpan_semua({
+    'tabel1_A_variasi_theta': (hasil_A_theta, theta_list, 'theta'),
+    'tabel1_A_variasi_eta'  : (hasil_A_eta,   eta_list,   'eta'),
+    'tabel1_A_variasi_m'    : (hasil_A_m,     m_list,     'm'),
+    'tabel1_A_variasi_B'    : (hasil_A_B,     B_list,     'B'),
+    'tabel3_B_variasi_theta': (hasil_B_theta, theta_list, 'theta'),
+    'tabel3_B_variasi_omega': (hasil_B_omega, omega_list, 'omega'),
+    'tabel3_B_variasi_phi'  : (hasil_B_phi,   phi_list,   'phi'),
+    'tabel3_B_variasi_m'    : (hasil_B_m,     m_list,     'm'),
+    'tabel3_B_variasi_B'    : (hasil_B_B,     B_list,     'B'),
+})
+print("\nSelesai!")
