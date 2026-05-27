@@ -306,6 +306,15 @@ print(table(df$Y, useNA = "ifany"))
 # Variabel aktif untuk MCA
 vars_active <- c("X1", "X2", "X3", "X5", "X6", "X7", "X8", "X9", "X10", "X11a", "X12a")
 
+# Mapping kode variabel ke nama asli
+nama_var <- c(
+  X1 = "Departemen", X2 = "Angkatan", X3 = "Pengeluaran per Bulan",
+  X5 = "Jenis Akses ChatGPT", X6 = "Multi-Platform AI",
+  X7 = "Intensitas Penggunaan", X8 = "Keinginan Berlangganan",
+  X9 = "Sensitivitas Harga", X10 = "Tujuan Utama Penggunaan",
+  X11a = "Pernah Berlangganan Plus/Pro", X12a = "Pernah Pakai Akun Sharing"
+)
+
 # Variabel supplementary kualitatif
 vars_sup_quali <- c("Y")
 
@@ -341,7 +350,7 @@ cat("DISTRIBUSI FREKUENSI VARIABEL\n")
 cat("="*60, "\n\n")
 
 for(var in vars_active) {
-  cat(paste0("\n--- ", var, " ---\n"))
+  cat(paste0("\n--- ", nama_var[var], " (", var, ") ---\n"))
   tbl <- table(df_mca_complete[[var]], useNA = "ifany")
   tbl_pct <- round(prop.table(tbl) * 100, 1)
   result <- data.frame(Kategori = names(tbl), Frekuensi = as.numeric(tbl),
@@ -362,7 +371,7 @@ for(i in seq_along(vars_active)) {
   p <- ggplot(df_mca_complete, aes(x = .data[[var]])) +
     geom_bar(fill = brewer.pal(3, "Set2")[1], color = "black", alpha = 0.8) +
     geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3) +
-    labs(title = var, x = "", y = "Frekuensi") +
+    labs(title = paste0(nama_var[var], " (", var, ")"), x = "", y = "Frekuensi") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
           plot.title = element_text(face = "bold", size = 10))
@@ -414,28 +423,98 @@ grid.arrange(p_box1, p_box2, ncol = 2)
 p_x4_x1 <- ggplot(df_mca_complete, aes(x = X1, y = X4, fill = X1)) +
   geom_boxplot(alpha = 0.7, outlier.shape = 21) +
   scale_fill_brewer(palette = "Set2") +
-  labs(title = "X4 vs X1 (Departemen)", x = "", y = "Jumlah Platform AI") +
+  labs(title = "Jumlah Platform AI vs Departemen", x = "", y = "Jumlah Platform AI") +
   theme_minimal() + theme(legend.position = "none")
 
 p_x4_x2 <- ggplot(df_mca_complete, aes(x = X2, y = X4, fill = X2)) +
   geom_boxplot(alpha = 0.7, outlier.shape = 21) +
   scale_fill_brewer(palette = "Set2") +
-  labs(title = "X4 vs X2 (Angkatan)", x = "", y = "Jumlah Platform AI") +
+  labs(title = "Jumlah Platform AI vs Angkatan", x = "", y = "Jumlah Platform AI") +
   theme_minimal() + theme(legend.position = "none")
 
 p_x4_x5 <- ggplot(df_mca_complete, aes(x = X5, y = X4, fill = X5)) +
   geom_boxplot(alpha = 0.7, outlier.shape = 21) +
   scale_fill_brewer(palette = "Set2") +
-  labs(title = "X4 vs X5 (Jenis Akses)", x = "", y = "Jumlah Platform AI") +
+  labs(title = "Jumlah Platform AI vs Jenis Akses ChatGPT", x = "", y = "Jumlah Platform AI") +
   theme_minimal() + theme(legend.position = "none")
 
 p_x4_x11a <- ggplot(df_mca_complete, aes(x = X11a, y = X4, fill = X11a)) +
   geom_boxplot(alpha = 0.7, outlier.shape = 21) +
   scale_fill_brewer(palette = "Set2") +
-  labs(title = "X4 vs X11a (Pernah Berlangganan)", x = "", y = "Jumlah Platform AI") +
+  labs(title = "Jumlah Platform AI vs Pernah Berlangganan", x = "", y = "Jumlah Platform AI") +
   theme_minimal() + theme(legend.position = "none")
 
 grid.arrange(p_x4_x1, p_x4_x2, p_x4_x5, p_x4_x11a, ncol = 2)
+```
+
+## Karakteristik Variabel Conditional (X11b, X12b, X12c)
+
+Variabel ini hanya diisi oleh responden yang memenuhi kondisi tertentu:
+
+- **X11b (Jenis Berlangganan)**: hanya jika X11a = Ya (pernah berlangganan)
+- **X12b (Perilaku Akun Sharing)**: hanya jika X12a = Ya (pernah pakai sharing)
+- **X12c (Beralih ke Premium Pribadi)**: hanya jika X12a = Ya
+
+```{r viz-conditional, fig.height=8, fig.width=12}
+# X11b - Jenis Berlangganan
+df_x11b <- df[!is.na(df$X11b), ]
+p_x11b <- ggplot(df_x11b, aes(x = X11b)) +
+  geom_bar(fill = "#8da0cb", color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+  labs(title = "Jenis Berlangganan (X11b)",
+       subtitle = paste0("n = ", nrow(df_x11b), " (hanya yang pernah berlangganan)"),
+       x = "", y = "Frekuensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text.x = element_text(angle = 30, hjust = 1))
+
+# X12b - Perilaku Akun Sharing
+df_x12b <- df[!is.na(df$X12b), ]
+p_x12b <- ggplot(df_x12b, aes(x = X12b)) +
+  geom_bar(fill = "#fc8d62", color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+  labs(title = "Perilaku Akun Sharing (X12b)",
+       subtitle = paste0("n = ", nrow(df_x12b), " (hanya yang pernah pakai sharing)"),
+       x = "", y = "Frekuensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text.x = element_text(angle = 30, hjust = 1))
+
+# X12c - Beralih ke Premium Pribadi
+df_x12c <- df[!is.na(df$X12c), ]
+p_x12c <- ggplot(df_x12c, aes(x = X12c)) +
+  geom_bar(fill = "#66c2a5", color = "black", alpha = 0.8) +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3.5) +
+  labs(title = "Beralih ke Premium Pribadi (X12c)",
+       subtitle = paste0("n = ", nrow(df_x12c), " (hanya yang pernah pakai sharing)"),
+       x = "", y = "Frekuensi") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+grid.arrange(p_x11b, p_x12b, p_x12c, ncol = 2)
+```
+
+```{r tabel-conditional}
+cat("DISTRIBUSI VARIABEL CONDITIONAL\n")
+cat(strrep("=", 50), "\n")
+
+cat("\n--- Jenis Berlangganan / X11b (n =", nrow(df_x11b), ") ---\n")
+tbl_x11b <- table(df_x11b$X11b)
+print(data.frame(Kategori = names(tbl_x11b),
+                 Frekuensi = as.numeric(tbl_x11b),
+                 Persen = round(prop.table(tbl_x11b) * 100, 1)))
+
+cat("\n--- Perilaku Akun Sharing / X12b (n =", nrow(df_x12b), ") ---\n")
+tbl_x12b <- table(df_x12b$X12b)
+print(data.frame(Kategori = names(tbl_x12b),
+                 Frekuensi = as.numeric(tbl_x12b),
+                 Persen = round(prop.table(tbl_x12b) * 100, 1)))
+
+cat("\n--- Beralih ke Premium / X12c (n =", nrow(df_x12c), ") ---\n")
+tbl_x12c <- table(df_x12c$X12c)
+print(data.frame(Kategori = names(tbl_x12c),
+                 Frekuensi = as.numeric(tbl_x12c),
+                 Persen = round(prop.table(tbl_x12c) * 100, 1)))
 ```
 
 ## Distribusi Variabel Dependen (Y - Loyalitas)
@@ -474,7 +553,7 @@ ggplot(df_mca_complete, aes(x = Y, fill = Y)) +
 ```{r crosstab}
 # Cross-tabulation Y dengan setiap variabel
 for(var in vars_active) {
-  cat(paste0("\n--- Cross-tab: Y vs ", var, " ---\n"))
+  cat(paste0("\n--- Cross-tab: Loyalitas vs ", nama_var[var], " (", var, ") ---\n"))
   ct <- table(df_mca_complete$Y, df_mca_complete[[var]])
   print(ct)
   cat("\nRow proportions (%):\n")
