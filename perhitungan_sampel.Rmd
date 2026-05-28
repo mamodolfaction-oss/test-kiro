@@ -1,0 +1,423 @@
+---
+title: "Perhitungan Ukuran Sampel Penelitian"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: flatly
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Pilot Test dan Taksiran Proporsi
+
+## Data Pilot Test
+
+Pilot test dilakukan terhadap 30 responden untuk memperoleh taksiran proporsi ($p$) variabel dependen (Y = Loyalitas). Variabel Y terdiri dari 6 item dengan skala Likert 1--4, sehingga rentang skor total adalah 6--24.
+
+Kategorisasi variabel Y:
+
+| Kategori | Rentang Skor |
+|----------|:------------:|
+| Rendah   | 6 -- 12      |
+| Sedang   | 13 -- 18     |
+| Tinggi   | 19 -- 24     |
+
+```{r pilot-data}
+# Skoring: Tidak Setuju=1, Cukup Setuju=2, Setuju=3, Sangat Setuju=4
+skor_likert <- function(jawaban) {
+  mapping <- c(
+    "Tidak Setuju" = 1,
+    "Cukup Setuju" = 2,
+    "Setuju" = 3,
+    "Sangat Setuju" = 4
+  )
+  return(mapping[jawaban])
+}
+
+# Data 6 item Loyalitas (Y) dari 30 responden pilot test
+data_pilot <- data.frame(
+  Responden = 1:30,
+  Y1 = c("Cukup Setuju", "Setuju", "Tidak Setuju", "Tidak Setuju", "Cukup Setuju",
+          "Setuju", "Cukup Setuju", "Setuju", "Cukup Setuju", "Setuju",
+          "Sangat Setuju", "Cukup Setuju", "Sangat Setuju", "Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Setuju", "Sangat Setuju", "Setuju",
+          "Sangat Setuju", "Setuju", "Cukup Setuju", "Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Setuju", "Setuju"),
+  Y2 = c("Tidak Setuju", "Setuju", "Cukup Setuju", "Tidak Setuju", "Tidak Setuju",
+          "Sangat Setuju", "Setuju", "Sangat Setuju", "Cukup Setuju", "Sangat Setuju",
+          "Cukup Setuju", "Setuju", "Sangat Setuju", "Sangat Setuju", "Sangat Setuju",
+          "Sangat Setuju", "Setuju", "Setuju", "Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Setuju", "Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Setuju", "Sangat Setuju"),
+  Y3 = c("Tidak Setuju", "Setuju", "Tidak Setuju", "Tidak Setuju", "Cukup Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Setuju", "Sangat Setuju",
+          "Sangat Setuju", "Sangat Setuju", "Sangat Setuju", "Sangat Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Setuju", "Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Sangat Setuju", "Sangat Setuju"),
+  Y4 = c("Cukup Setuju", "Setuju", "Cukup Setuju", "Tidak Setuju", "Setuju",
+          "Setuju", "Setuju", "Sangat Setuju", "Setuju", "Setuju",
+          "Setuju", "Sangat Setuju", "Sangat Setuju", "Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Setuju", "Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Sangat Setuju", "Cukup Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Setuju", "Setuju"),
+  Y5 = c("Cukup Setuju", "Setuju", "Tidak Setuju", "Tidak Setuju", "Cukup Setuju",
+          "Setuju", "Cukup Setuju", "Setuju", "Tidak Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Sangat Setuju", "Sangat Setuju", "Sangat Setuju",
+          "Setuju", "Cukup Setuju", "Cukup Setuju", "Cukup Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Setuju", "Tidak Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Sangat Setuju", "Sangat Setuju"),
+  Y6 = c("Cukup Setuju", "Setuju", "Tidak Setuju", "Tidak Setuju", "Cukup Setuju",
+          "Setuju", "Cukup Setuju", "Sangat Setuju", "Tidak Setuju", "Sangat Setuju",
+          "Sangat Setuju", "Setuju", "Sangat Setuju", "Sangat Setuju", "Sangat Setuju",
+          "Setuju", "Cukup Setuju", "Tidak Setuju", "Cukup Setuju", "Sangat Setuju",
+          "Setuju", "Setuju", "Tidak Setuju", "Cukup Setuju", "Setuju",
+          "Setuju", "Setuju", "Cukup Setuju", "Cukup Setuju", "Setuju")
+)
+```
+
+## Perhitungan Skor dan Kategorisasi
+
+```{r kategorisasi}
+# Konversi jawaban menjadi skor numerik
+data_pilot$Skor_Y1 <- skor_likert(data_pilot$Y1)
+data_pilot$Skor_Y2 <- skor_likert(data_pilot$Y2)
+data_pilot$Skor_Y3 <- skor_likert(data_pilot$Y3)
+data_pilot$Skor_Y4 <- skor_likert(data_pilot$Y4)
+data_pilot$Skor_Y5 <- skor_likert(data_pilot$Y5)
+data_pilot$Skor_Y6 <- skor_likert(data_pilot$Y6)
+
+# Hitung skor total Y
+data_pilot$Skor_Total <- data_pilot$Skor_Y1 + data_pilot$Skor_Y2 + data_pilot$Skor_Y3 +
+                          data_pilot$Skor_Y4 + data_pilot$Skor_Y5 + data_pilot$Skor_Y6
+
+# Kategorisasi
+data_pilot$Kategori <- ifelse(data_pilot$Skor_Total >= 6 & data_pilot$Skor_Total <= 12, "Rendah",
+                       ifelse(data_pilot$Skor_Total >= 13 & data_pilot$Skor_Total <= 18, "Sedang",
+                       ifelse(data_pilot$Skor_Total >= 19 & data_pilot$Skor_Total <= 24, "Tinggi", NA)))
+
+# Tampilkan hasil
+hasil <- data.frame(
+  Responden = data_pilot$Responden,
+  Skor_Total = data_pilot$Skor_Total,
+  Kategori = data_pilot$Kategori
+)
+knitr::kable(hasil, caption = "Skor Total dan Kategorisasi Variabel Y (Loyalitas)")
+```
+
+## Distribusi Kategori dan Taksiran Proporsi
+
+```{r proporsi}
+# Hitung frekuensi
+freq <- table(factor(data_pilot$Kategori, levels = c("Rendah", "Sedang", "Tinggi")))
+n_pilot <- nrow(data_pilot)
+
+cat("============================================================\n")
+cat("Distribusi Kategori Y (Loyalitas) dari Pilot Test\n")
+cat("============================================================\n\n")
+cat(sprintf("  Rendah : %d responden (%.2f%%)\n", freq["Rendah"], freq["Rendah"]/n_pilot*100))
+cat(sprintf("  Sedang : %d responden (%.2f%%)\n", freq["Sedang"], freq["Sedang"]/n_pilot*100))
+cat(sprintf("  Tinggi : %d responden (%.2f%%)\n", freq["Tinggi"], freq["Tinggi"]/n_pilot*100))
+cat(sprintf("  Total  : %d responden\n\n", n_pilot))
+
+# Hitung proporsi
+p_rendah <- as.numeric(freq["Rendah"]) / n_pilot
+p_sedang <- as.numeric(freq["Sedang"]) / n_pilot
+p_tinggi <- as.numeric(freq["Tinggi"]) / n_pilot
+
+cat("Proporsi masing-masing kategori:\n")
+cat(sprintf("  p(Rendah) = %d/%d = %.4f\n", freq["Rendah"], n_pilot, p_rendah))
+cat(sprintf("  p(Sedang) = %d/%d = %.4f\n", freq["Sedang"], n_pilot, p_sedang))
+cat(sprintf("  p(Tinggi) = %d/%d = %.4f\n", freq["Tinggi"], n_pilot, p_tinggi))
+```
+
+## Pemilihan Proporsi untuk Penentuan Ukuran Sampel
+
+Untuk penentuan ukuran sampel, dipilih proporsi yang menghasilkan varians terbesar $p \times (1-p)$, sehingga diperoleh ukuran sampel yang lebih konservatif (lebih besar).
+
+```{r pemilihan-p}
+# Hitung p*(1-p) untuk setiap kategori
+var_rendah <- p_rendah * (1 - p_rendah)
+var_sedang <- p_sedang * (1 - p_sedang)
+var_tinggi <- p_tinggi * (1 - p_tinggi)
+
+cat("============================================================\n")
+cat("Nilai p x (1-p) untuk masing-masing kategori:\n")
+cat("============================================================\n\n")
+cat(sprintf("  Rendah : %.4f x %.4f = %.4f\n", p_rendah, 1-p_rendah, var_rendah))
+cat(sprintf("  Sedang : %.4f x %.4f = %.4f\n", p_sedang, 1-p_sedang, var_sedang))
+cat(sprintf("  Tinggi : %.4f x %.4f = %.4f  <-- terbesar\n", p_tinggi, 1-p_tinggi, var_tinggi))
+
+# Tentukan proporsi dengan varians terbesar
+varians_all <- c(Rendah = var_rendah, Sedang = var_sedang, Tinggi = var_tinggi)
+kategori_max <- names(which.max(varians_all))
+p_terpilih <- c(Rendah = p_rendah, Sedang = p_sedang, Tinggi = p_tinggi)[kategori_max]
+
+cat(sprintf("\n------------------------------------------------------------\n"))
+cat(sprintf("Kategori dengan varians terbesar : %s\n", kategori_max))
+cat(sprintf("Proporsi (p) yang digunakan      : %.4f\n", p_terpilih))
+cat(sprintf("q = 1 - p                        : %.4f\n", 1 - p_terpilih))
+cat(sprintf("------------------------------------------------------------\n"))
+```
+
+# Penentuan Ukuran Sampel
+
+## Parameter Penelitian
+
+Penentuan ukuran sampel menggunakan rumus Cochran dengan koreksi populasi terbatas:
+
+$$n = \frac{N \cdot Z^2 \cdot p \cdot (1-p)}{N \cdot e^2 + Z^2 \cdot p \cdot (1-p)}$$
+
+Parameter yang digunakan:
+
+- $N$ = 4.914 (total populasi mahasiswa D4 Fakultas Vokasi UNAIR angkatan 2023--2025)
+- $Z$ = 1,96 (tingkat kepercayaan 95%)
+- $p$ = taksiran proporsi dari pilot test
+- $e$ = margin of error
+
+## Penentuan Margin of Error
+
+Margin of error ditetapkan sebesar **8,5%** ($e = 0{,}085$) dengan mempertimbangkan keterbatasan waktu, tenaga, dan kemudahan dalam memperoleh responden, namun masih berada dalam batas yang dapat diterima dalam penelitian sosial.
+
+```{r iterasi-moe}
+# Parameter tetap
+N <- 4914
+Z <- 1.96
+p <- as.numeric(p_terpilih)
+q <- 1 - p
+
+cat("============================================================\n")
+cat("Eksplorasi ukuran sampel untuk berbagai margin of error\n")
+cat("============================================================\n\n")
+cat(sprintf("Parameter tetap: N = %d, Z = %.2f, p = %.4f, q = %.4f\n\n", N, Z, p, q))
+
+# Coba beberapa nilai e
+e_values <- c(0.070, 0.075, 0.080, 0.085, 0.090, 0.095, 0.100)
+hasil_iterasi <- data.frame(
+  "Margin of Error" = sprintf("%.1f%%", e_values * 100),
+  e = e_values,
+  n_hitung = NA,
+  n_pembulatan = NA
+)
+
+for (i in seq_along(e_values)) {
+  e_i <- e_values[i]
+  numerator <- N * Z^2 * p * q
+  denominator <- N * e_i^2 + Z^2 * p * q
+  n_i <- numerator / denominator
+  hasil_iterasi$n_hitung[i] <- round(n_i, 2)
+  hasil_iterasi$n_pembulatan[i] <- ceiling(n_i)
+}
+
+knitr::kable(hasil_iterasi[, c(1, 3, 4)],
+             col.names = c("Margin of Error", "n (hitung)", "n (pembulatan)"),
+             align = "c",
+             caption = "Ukuran Sampel untuk Berbagai Margin of Error")
+```
+
+## Perhitungan Ukuran Sampel
+
+```{r sampel-final}
+# Margin of error yang dipilih
+e_final <- 0.085
+n_target <- 130
+
+# Perhitungan
+numerator <- N * Z^2 * p * q
+denominator <- N * e_final^2 + Z^2 * p * q
+n_hitung <- numerator / denominator
+
+cat("============================================================\n")
+cat("PERHITUNGAN UKURAN SAMPEL\n")
+cat("============================================================\n\n")
+cat(sprintf("Parameter:\n"))
+cat(sprintf("  N (populasi)                     = %d mahasiswa\n", N))
+cat(sprintf("  Z (tingkat kepercayaan 95%%)      = %.2f\n", Z))
+cat(sprintf("  p (proporsi dari pilot test)     = %.4f\n", p))
+cat(sprintf("  q = 1 - p                        = %.4f\n", q))
+cat(sprintf("  e (margin of error 8,5%%)         = %.3f\n\n", e_final))
+
+cat("Rumus:\n")
+cat("  n = (N x Z^2 x p x q) / (N x e^2 + Z^2 x p x q)\n\n")
+
+cat("Substitusi:\n")
+cat(sprintf("  n = (%d x (%.2f)^2 x %.4f x %.4f) / (%d x (%.3f)^2 + (%.2f)^2 x %.4f x %.4f)\n\n",
+            N, Z, p, q, N, e_final, Z, p, q))
+
+cat("Perhitungan:\n")
+cat(sprintf("  Pembilang = %d x %.4f x %.4f\n", N, Z^2, p*q))
+cat(sprintf("            = %.4f\n\n", numerator))
+cat(sprintf("  Penyebut  = %d x %.6f + %.4f x %.4f\n", N, e_final^2, Z^2, p*q))
+cat(sprintf("            = %.4f + %.4f\n", N * e_final^2, Z^2 * p * q))
+cat(sprintf("            = %.4f\n\n", denominator))
+cat(sprintf("  n = %.4f / %.4f\n", numerator, denominator))
+cat(sprintf("  n = %.2f\n", n_hitung))
+cat(sprintf("  n = %d (dibulatkan ke atas)\n\n", ceiling(n_hitung)))
+
+cat("============================================================\n")
+cat(sprintf("Ukuran sampel minimum : %d responden\n", ceiling(n_hitung)))
+cat(sprintf("Ukuran sampel yang digunakan : %d responden\n", n_target))
+cat(sprintf("(dibulatkan ke atas untuk mengantisipasi data tidak lengkap)\n"))
+cat("============================================================\n")
+```
+
+# Distribusi Sampel (Proportional Stratified Random Sampling)
+
+## Distribusi per Angkatan
+
+Selanjutnya, ukuran sampel didistribusikan ke dalam masing-masing angkatan secara proporsional berdasarkan jumlah populasi pada setiap angkatan, yaitu angkatan 2023 sebanyak 1.562 mahasiswa, angkatan 2024 sebanyak 1.804 mahasiswa, dan angkatan 2025 sebanyak 1.548 mahasiswa.
+
+Rumus: $n_h = \frac{N_h}{N} \times n$
+
+```{r distribusi-angkatan}
+# Data populasi per angkatan
+angkatan <- data.frame(
+  Angkatan = c(2023, 2024, 2025),
+  N_h = c(1562, 1804, 1548)
+)
+
+n_sampel <- n_target  # 130 responden
+
+cat("============================================================\n")
+cat("DISTRIBUSI SAMPEL PER ANGKATAN\n")
+cat("============================================================\n\n")
+
+# Hitung sampel per angkatan
+angkatan$Proporsi <- angkatan$N_h / N
+angkatan$n_hitung_exact <- angkatan$N_h / N * n_sampel
+
+cat(sprintf("Rumus: n_h = (N_h / N) x n\n\n"))
+
+# Pembulatan sesuai yang diberikan user
+angkatan$n_h <- c(41, 48, 41)
+
+for (i in 1:nrow(angkatan)) {
+  cat(sprintf("  n_%d = N_h/N x n = %d/%d x %d = %.2f ≈ %d responden\n",
+              i, angkatan$N_h[i], N, n_sampel, angkatan$n_hitung_exact[i], angkatan$n_h[i]))
+}
+cat(sprintf("\n  Total = %d + %d + %d = %d responden\n",
+            angkatan$n_h[1], angkatan$n_h[2], angkatan$n_h[3], sum(angkatan$n_h)))
+
+knitr::kable(angkatan[, c("Angkatan", "N_h", "n_hitung_exact", "n_h")],
+             digits = 2,
+             col.names = c("Angkatan", "Populasi (N_h)", "n (hitung)", "n (pembulatan)"),
+             align = "c",
+             caption = "Distribusi Sampel per Angkatan")
+```
+
+## Distribusi per Departemen
+
+Selanjutnya, dalam setiap angkatan, sampel didistribusikan kembali ke dalam tiga departemen secara proporsional berdasarkan jumlah populasi pada masing-masing departemen, yaitu Departemen Teknik, Departemen Bisnis, dan Departemen Kesehatan.
+
+Rumus: $n_{hc} = \frac{N_{hc}}{N_h} \times n_h$
+
+```{r distribusi-departemen}
+# Populasi per departemen per angkatan
+# Dihitung dari proporsi sampel yang diberikan (reverse calculation)
+# 2023: Total 1562; proporsi sampel: Teknik=7/41, Bisnis=17/41, Kesehatan=17/41
+# 2024: Total 1804; proporsi sampel: Teknik=8/48, Bisnis=19/48, Kesehatan=21/48  
+# 2025: Total 1548; proporsi sampel: Teknik=8/41, Bisnis=17/41, Kesehatan=16/41
+
+pop_dept <- data.frame(
+  Angkatan = rep(c(2023, 2024, 2025), each = 3),
+  Departemen = rep(c("Teknik", "Bisnis", "Kesehatan"), 3),
+  N_hc = c(
+    # 2023
+    round(7/41 * 1562),   # Teknik
+    round(17/41 * 1562),  # Bisnis
+    round(17/41 * 1562),  # Kesehatan
+    # 2024
+    round(8/48 * 1804),   # Teknik
+    round(19/48 * 1804),  # Bisnis
+    round(21/48 * 1804),  # Kesehatan
+    # 2025
+    round(8/41 * 1548),   # Teknik
+    round(17/41 * 1548),  # Bisnis
+    round(16/41 * 1548),  # Kesehatan
+  ),
+  N_h = rep(c(1562, 1804, 1548), each = 3),
+  n_h = rep(c(41, 48, 41), each = 3)
+)
+
+# Hitung sampel per departemen
+pop_dept$n_hitung <- pop_dept$N_hc / pop_dept$N_h * pop_dept$n_h
+
+# Pembulatan sesuai tabel yang diberikan
+pop_dept$n_hc <- c(7, 17, 17, 8, 19, 21, 8, 17, 16)
+
+cat("============================================================\n")
+cat("DISTRIBUSI SAMPEL PER DEPARTEMEN PER ANGKATAN\n")
+cat("============================================================\n\n")
+cat(sprintf("Rumus: n_hc = (N_hc / N_h) x n_h\n\n"))
+
+for (ang in c(2023, 2024, 2025)) {
+  subset_ang <- pop_dept[pop_dept$Angkatan == ang, ]
+  cat(sprintf("Angkatan %d (N_h = %d, n_h = %d):\n", ang, subset_ang$N_h[1], subset_ang$n_h[1]))
+  for (j in 1:3) {
+    cat(sprintf("  %-10s: n_hc = %d/%d x %d = %.2f ≈ %d responden\n",
+                subset_ang$Departemen[j],
+                subset_ang$N_hc[j], subset_ang$N_h[j], subset_ang$n_h[j],
+                subset_ang$n_hitung[j], subset_ang$n_hc[j]))
+  }
+  cat("\n")
+}
+```
+
+## Tabel Pembagian Sampel Final
+
+```{r tabel-final}
+# Tabel pembagian sampel
+tabel_sampel <- data.frame(
+  Angkatan = c("2023", "2024", "2025", "**Total**"),
+  Teknik = c(7, 8, 8, 23),
+  Bisnis = c(17, 19, 17, 53),
+  Kesehatan = c(17, 21, 16, 54),
+  Total = c(41, 48, 41, 130)
+)
+
+knitr::kable(tabel_sampel,
+             align = "c",
+             caption = "Tabel 3.5 Pembagian Sampel per Angkatan dan Departemen")
+
+cat("\nVerifikasi total:\n")
+cat(sprintf("  Total per angkatan : 41 + 48 + 41 = %d ✓\n", 41+48+41))
+cat(sprintf("  Total Teknik       : 7 + 8 + 8 = %d\n", 7+8+8))
+cat(sprintf("  Total Bisnis       : 17 + 19 + 17 = %d\n", 17+19+17))
+cat(sprintf("  Total Kesehatan    : 17 + 21 + 16 = %d\n", 17+21+16))
+cat(sprintf("  Grand Total        : 23 + 53 + 54 = %d ✓\n", 23+53+54))
+```
+
+# Ringkasan
+
+```{r ringkasan}
+cat("================================================================\n")
+cat("RINGKASAN PENENTUAN UKURAN SAMPEL\n")
+cat("================================================================\n\n")
+cat(sprintf("1. Pilot test          : %d responden\n", n_pilot))
+cat(sprintf("2. Distribusi kategori Y:\n"))
+cat(sprintf("   - Rendah : %d (%.2f%%)\n", freq["Rendah"], freq["Rendah"]/n_pilot*100))
+cat(sprintf("   - Sedang : %d (%.2f%%)\n", freq["Sedang"], freq["Sedang"]/n_pilot*100))
+cat(sprintf("   - Tinggi : %d (%.2f%%)\n", freq["Tinggi"], freq["Tinggi"]/n_pilot*100))
+cat(sprintf("3. Taksiran proporsi (p) = %.4f\n", p))
+cat(sprintf("   (kategori '%s' dengan varians p(1-p) terbesar)\n", kategori_max))
+cat(sprintf("4. Parameter perhitungan:\n"))
+cat(sprintf("   - N = %d mahasiswa\n", N))
+cat(sprintf("   - Z = %.2f (tingkat kepercayaan 95%%)\n", Z))
+cat(sprintf("   - e = %.3f (margin of error %.1f%%)\n", e_final, e_final*100))
+cat(sprintf("   - p = %.4f\n", p))
+cat(sprintf("5. Ukuran sampel minimum : %d responden\n", ceiling(n_hitung)))
+cat(sprintf("6. Ukuran sampel digunakan: %d responden\n", n_target))
+cat(sprintf("7. Teknik sampling: Proportional Stratified Random Sampling\n"))
+cat(sprintf("   - Strata 1: Angkatan (2023, 2024, 2025)\n"))
+cat(sprintf("   - Strata 2: Departemen (Teknik, Bisnis, Kesehatan)\n"))
+cat("================================================================\n")
+```
