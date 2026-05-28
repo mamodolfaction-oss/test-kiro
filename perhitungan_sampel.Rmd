@@ -321,37 +321,32 @@ Selanjutnya, dalam setiap angkatan, sampel didistribusikan kembali ke dalam tiga
 Rumus: $n_{hc} = \frac{N_{hc}}{N_h} \times n_h$
 
 ```{r distribusi-departemen}
-# Populasi per departemen per angkatan
-# Dihitung dari proporsi sampel yang diberikan (reverse calculation)
-# 2023: Total 1562; proporsi sampel: Teknik=7/41, Bisnis=17/41, Kesehatan=17/41
-# 2024: Total 1804; proporsi sampel: Teknik=8/48, Bisnis=19/48, Kesehatan=21/48  
-# 2025: Total 1548; proporsi sampel: Teknik=8/41, Bisnis=17/41, Kesehatan=16/41
-
+# Populasi per departemen per angkatan (data aktual)
 pop_dept <- data.frame(
   Angkatan = rep(c(2023, 2024, 2025), each = 3),
   Departemen = rep(c("Teknik", "Bisnis", "Kesehatan"), 3),
   N_hc = c(
-    # 2023
-    round(7/41 * 1562),   # Teknik
-    round(17/41 * 1562),  # Bisnis
-    round(17/41 * 1562),  # Kesehatan
-    # 2024
-    round(8/48 * 1804),   # Teknik
-    round(19/48 * 1804),  # Bisnis
-    round(21/48 * 1804),  # Kesehatan
-    # 2025
-    round(8/41 * 1548),   # Teknik
-    round(17/41 * 1548),  # Bisnis
-    round(16/41 * 1548),  # Kesehatan
+    # 2023 (Total: 1562)
+    251,   # Teknik
+    656,   # Bisnis
+    655,   # Kesehatan
+    # 2024 (Total: 1804)
+    305,   # Teknik
+    717,   # Bisnis
+    782,   # Kesehatan
+    # 2025 (Total: 1548)
+    286,   # Teknik
+    638,   # Bisnis
+    624    # Kesehatan
   ),
   N_h = rep(c(1562, 1804, 1548), each = 3),
   n_h = rep(c(41, 48, 41), each = 3)
 )
 
-# Hitung sampel per departemen
+# Hitung sampel per departemen (exact)
 pop_dept$n_hitung <- pop_dept$N_hc / pop_dept$N_h * pop_dept$n_h
 
-# Pembulatan sesuai tabel yang diberikan
+# Pembulatan proporsional (disesuaikan agar total per angkatan tepat)
 pop_dept$n_hc <- c(7, 17, 17, 8, 19, 21, 8, 17, 16)
 
 cat("============================================================\n")
@@ -368,8 +363,23 @@ for (ang in c(2023, 2024, 2025)) {
                 subset_ang$N_hc[j], subset_ang$N_h[j], subset_ang$n_h[j],
                 subset_ang$n_hitung[j], subset_ang$n_hc[j]))
   }
-  cat("\n")
+  cat(sprintf("  Total angkatan %d = %d responden\n\n", ang, sum(subset_ang$n_hc)))
 }
+
+# Tabel populasi per departemen
+pop_tabel <- data.frame(
+  Angkatan = c("2023", "2024", "2025", "**Total**"),
+  Teknik = c(251, 305, 286, 251+305+286),
+  Bisnis = c(656, 717, 638, 656+717+638),
+  Kesehatan = c(655, 782, 624, 655+782+624),
+  Total = c(1562, 1804, 1548, 4914)
+)
+
+cat("============================================================\n")
+cat("POPULASI PER DEPARTEMEN PER ANGKATAN\n")
+cat("============================================================\n\n")
+knitr::kable(pop_tabel, align = "c",
+             caption = "Jumlah Populasi Mahasiswa per Departemen dan Angkatan")
 ```
 
 ## Tabel Pembagian Sampel Final
