@@ -142,7 +142,7 @@ cat(sprintf("  p(Tinggi) = %d/%d = %.4f\n", freq["Tinggi"], n_pilot, p_tinggi))
 
 ## Pemilihan Proporsi untuk Penentuan Ukuran Sampel
 
-Untuk penentuan ukuran sampel, dipilih proporsi yang menghasilkan varians terbesar $p \times (1-p)$, sehingga diperoleh ukuran sampel yang lebih konservatif (lebih besar).
+Dalam konteks regresi logistik ordinal dengan tiga kategori, proporsi yang digunakan untuk penentuan ukuran sampel dipilih berdasarkan kategori yang paling sedikit ditemukan (minority class), yaitu kategori Rendah. Hal ini bertujuan agar estimasi pada kelompok minoritas tetap akurat, mengingat dalam model ordinal setiap kategori perlu terwakili secara memadai.
 
 ```{r pemilihan-p}
 # Hitung p*(1-p) untuk setiap kategori
@@ -155,15 +155,14 @@ cat("Nilai p x (1-p) untuk masing-masing kategori:\n")
 cat("============================================================\n\n")
 cat(sprintf("  Rendah : %.4f x %.4f = %.4f\n", p_rendah, 1-p_rendah, var_rendah))
 cat(sprintf("  Sedang : %.4f x %.4f = %.4f\n", p_sedang, 1-p_sedang, var_sedang))
-cat(sprintf("  Tinggi : %.4f x %.4f = %.4f  <-- terbesar\n", p_tinggi, 1-p_tinggi, var_tinggi))
+cat(sprintf("  Tinggi : %.4f x %.4f = %.4f\n", p_tinggi, 1-p_tinggi, var_tinggi))
 
-# Tentukan proporsi dengan varians terbesar
-varians_all <- c(Rendah = var_rendah, Sedang = var_sedang, Tinggi = var_tinggi)
-kategori_max <- names(which.max(varians_all))
-p_terpilih <- c(Rendah = p_rendah, Sedang = p_sedang, Tinggi = p_tinggi)[kategori_max]
+# Pilih proporsi kategori Rendah (minority class)
+p_terpilih <- p_rendah
+kategori_max <- "Rendah"
 
 cat(sprintf("\n------------------------------------------------------------\n"))
-cat(sprintf("Kategori dengan varians terbesar : %s\n", kategori_max))
+cat(sprintf("Proporsi yang dipilih: kategori %s (minority class)\n", kategori_max))
 cat(sprintf("Proporsi (p) yang digunakan      : %.4f\n", p_terpilih))
 cat(sprintf("q = 1 - p                        : %.4f\n", 1 - p_terpilih))
 cat(sprintf("------------------------------------------------------------\n"))
@@ -181,12 +180,12 @@ Parameter yang digunakan:
 
 - $N$ = 4.914 (total populasi mahasiswa D4 Fakultas Vokasi UNAIR angkatan 2023--2025)
 - $Z$ = 1,96 (tingkat kepercayaan 95%)
-- $p$ = taksiran proporsi dari pilot test
+- $p$ = 0,2 (proporsi kategori Rendah dari pilot test)
 - $e$ = margin of error
 
 ## Penentuan Margin of Error
 
-Margin of error disesuaikan dengan mempertimbangkan keterbatasan waktu, tenaga, dan kemudahan dalam memperoleh responden, namun masih berada dalam batas yang dapat diterima dalam penelitian sosial.
+Margin of error ditetapkan sebesar **7%** ($e = 0{,}07$) dengan mempertimbangkan kebutuhan akurasi estimasi pada minority class serta ketersediaan responden di lapangan, dan masih berada dalam batas yang dapat diterima dalam penelitian sosial.
 
 ```{r iterasi-moe}
 # Parameter tetap
@@ -201,7 +200,7 @@ cat("============================================================\n\n")
 cat(sprintf("Parameter tetap: N = %d, Z = %.2f, p = %.4f, q = %.4f\n\n", N, Z, p, q))
 
 # Coba beberapa nilai e
-e_values <- c(0.070, 0.075, 0.080, 0.085, 0.086, 0.087, 0.090, 0.095, 0.100)
+e_values <- c(0.050, 0.055, 0.060, 0.065, 0.070, 0.075, 0.080, 0.085, 0.090)
 hasil_iterasi <- data.frame(
   "Margin of Error" = sprintf("%.1f%%", e_values * 100),
   e = e_values,
@@ -226,12 +225,10 @@ knitr::kable(hasil_iterasi[, c(1, 3, 4)],
 
 ## Perhitungan Ukuran Sampel
 
-Berdasarkan tabel di atas, dipilih margin of error sebesar **8,6%** ($e = 0{,}086$) yang menghasilkan ukuran sampel minimum sebesar 127 responden. Dengan mempertimbangkan keterbatasan waktu dan tenaga serta ketersediaan responden di lapangan, jumlah responden yang berhasil dikumpulkan adalah sebanyak **128 responden** yang telah memenuhi syarat ukuran sampel minimum.
-
 ```{r sampel-final}
 # Margin of error yang dipilih
-e_final <- 0.086
-n_target <- 128  # jumlah responden yang berhasil dikumpulkan
+e_final <- 0.07
+n_target <- 130  # jumlah responden yang berhasil dikumpulkan
 
 # Perhitungan
 numerator <- N * Z^2 * p * q
@@ -246,19 +243,19 @@ cat(sprintf("  N (populasi)                     = %d mahasiswa\n", N))
 cat(sprintf("  Z (tingkat kepercayaan 95%%)      = %.2f\n", Z))
 cat(sprintf("  p (proporsi dari pilot test)     = %.4f\n", p))
 cat(sprintf("  q = 1 - p                        = %.4f\n", q))
-cat(sprintf("  e (margin of error 8,6%%)         = %.3f\n\n", e_final))
+cat(sprintf("  e (margin of error 7%%)           = %.2f\n\n", e_final))
 
 cat("Rumus:\n")
 cat("  n = (N x Z^2 x p x q) / (N x e^2 + Z^2 x p x q)\n\n")
 
 cat("Substitusi:\n")
-cat(sprintf("  n = (%d x (%.2f)^2 x %.4f x %.4f) / (%d x (%.3f)^2 + (%.2f)^2 x %.4f x %.4f)\n\n",
+cat(sprintf("  n = (%d x (%.2f)^2 x %.4f x %.4f) / (%d x (%.2f)^2 + (%.2f)^2 x %.4f x %.4f)\n\n",
             N, Z, p, q, N, e_final, Z, p, q))
 
 cat("Perhitungan:\n")
 cat(sprintf("  Pembilang = %d x %.4f x %.4f\n", N, Z^2, p*q))
 cat(sprintf("            = %.4f\n\n", numerator))
-cat(sprintf("  Penyebut  = %d x %.6f + %.4f x %.4f\n", N, e_final^2, Z^2, p*q))
+cat(sprintf("  Penyebut  = %d x %.4f + %.4f x %.4f\n", N, e_final^2, Z^2, p*q))
 cat(sprintf("            = %.4f + %.4f\n", N * e_final^2, Z^2 * p * q))
 cat(sprintf("            = %.4f\n\n", denominator))
 cat(sprintf("  n = %.4f / %.4f\n", numerator, denominator))
@@ -287,7 +284,7 @@ angkatan <- data.frame(
   N_h = c(1562, 1804, 1548)
 )
 
-n_sampel <- n_target  # 128 responden
+n_sampel <- n_target  # 130 responden
 
 cat("============================================================\n")
 cat("DISTRIBUSI SAMPEL PER ANGKATAN\n")
@@ -299,8 +296,8 @@ angkatan$n_hitung_exact <- angkatan$N_h / N * n_sampel
 
 cat(sprintf("Rumus: n_h = (N_h / N) x n\n\n"))
 
-# Responden yang berhasil dikumpulkan per angkatan
-angkatan$n_h <- c(41, 47, 40)
+# Pembulatan
+angkatan$n_h <- c(41, 48, 41)
 
 for (i in 1:nrow(angkatan)) {
   cat(sprintf("  n_%d = N_h/N x n = %d/%d x %d = %.2f ≈ %d responden\n",
@@ -311,7 +308,7 @@ cat(sprintf("\n  Total = %d + %d + %d = %d responden\n",
 
 knitr::kable(angkatan[, c("Angkatan", "N_h", "n_hitung_exact", "n_h")],
              digits = 2,
-             col.names = c("Angkatan", "Populasi (N_h)", "n (proporsional)", "n (aktual)"),
+             col.names = c("Angkatan", "Populasi (N_h)", "n (hitung)", "n (pembulatan)"),
              align = "c",
              caption = "Distribusi Sampel per Angkatan")
 ```
@@ -342,7 +339,7 @@ pop_dept <- data.frame(
     624    # Kesehatan
   ),
   N_h = rep(c(1562, 1804, 1548), each = 3),
-  n_h = rep(c(41, 47, 40), each = 3)
+  n_h = rep(c(41, 48, 41), each = 3)
 )
 
 # Hitung sampel per departemen (proporsional)
@@ -384,13 +381,13 @@ for (ang in c(2023, 2024, 2025)) {
 ## Tabel Pembagian Sampel Final
 
 ```{r tabel-final}
-# Tabel pembagian sampel (responden yang berhasil dikumpulkan)
+# Tabel pembagian sampel
 tabel_sampel <- data.frame(
   Angkatan = c("2023", "2024", "2025", "**Total**"),
-  Teknik = c(7, 8, 7, 22),
+  Teknik = c(7, 8, 8, 23),
   Bisnis = c(17, 19, 17, 53),
-  Kesehatan = c(17, 20, 16, 53),
-  Total = c(41, 47, 40, 128)
+  Kesehatan = c(17, 21, 16, 54),
+  Total = c(41, 48, 41, 130)
 )
 
 knitr::kable(tabel_sampel,
@@ -398,11 +395,11 @@ knitr::kable(tabel_sampel,
              caption = "Tabel 3.5 Pembagian Sampel per Angkatan dan Departemen")
 
 cat("\nVerifikasi total:\n")
-cat(sprintf("  Total per angkatan  : 41 + 47 + 40 = %d ✓\n", 41+47+40))
-cat(sprintf("  Total Teknik        : 7 + 8 + 7 = %d\n", 7+8+7))
+cat(sprintf("  Total per angkatan  : 41 + 48 + 41 = %d ✓\n", 41+48+41))
+cat(sprintf("  Total Teknik        : 7 + 8 + 8 = %d\n", 7+8+8))
 cat(sprintf("  Total Bisnis        : 17 + 19 + 17 = %d\n", 17+19+17))
-cat(sprintf("  Total Kesehatan     : 17 + 20 + 16 = %d\n", 17+20+16))
-cat(sprintf("  Grand Total         : 22 + 53 + 53 = %d ✓\n", 22+53+53))
+cat(sprintf("  Total Kesehatan     : 17 + 21 + 16 = %d\n", 17+21+16))
+cat(sprintf("  Grand Total         : 23 + 53 + 54 = %d ✓\n", 23+53+54))
 ```
 
 # Ringkasan
@@ -417,11 +414,11 @@ cat(sprintf("   - Rendah : %d (%.2f%%)\n", freq["Rendah"], freq["Rendah"]/n_pilo
 cat(sprintf("   - Sedang : %d (%.2f%%)\n", freq["Sedang"], freq["Sedang"]/n_pilot*100))
 cat(sprintf("   - Tinggi : %d (%.2f%%)\n", freq["Tinggi"], freq["Tinggi"]/n_pilot*100))
 cat(sprintf("3. Taksiran proporsi (p) = %.4f\n", p))
-cat(sprintf("   (kategori '%s' dengan varians p(1-p) terbesar)\n", kategori_max))
+cat(sprintf("   (kategori '%s', minority class dalam model ordinal)\n", kategori_max))
 cat(sprintf("4. Parameter perhitungan:\n"))
 cat(sprintf("   - N = %d mahasiswa\n", N))
 cat(sprintf("   - Z = %.2f (tingkat kepercayaan 95%%)\n", Z))
-cat(sprintf("   - e = %.3f (margin of error %.1f%%)\n", e_final, e_final*100))
+cat(sprintf("   - e = %.2f (margin of error %.0f%%)\n", e_final, e_final*100))
 cat(sprintf("   - p = %.4f\n", p))
 cat(sprintf("5. Ukuran sampel minimum : %d responden\n", ceiling(n_hitung)))
 cat(sprintf("6. Responden yang dikumpulkan: %d responden (memenuhi syarat)\n", n_target))
