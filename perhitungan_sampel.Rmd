@@ -226,12 +226,12 @@ knitr::kable(hasil_iterasi[, c(1, 3, 4)],
 
 ## Perhitungan Ukuran Sampel
 
-Berdasarkan tabel di atas, dipilih margin of error sebesar **8,5%** ($e = 0{,}085$) yang menghasilkan ukuran sampel minimum sebesar 128 responden. Dengan mempertimbangkan keterbatasan waktu dan tenaga serta ketersediaan responden di lapangan, jumlah responden yang berhasil dikumpulkan adalah sebanyak **128 responden** yang telah memenuhi syarat ukuran sampel minimum.
+Berdasarkan tabel di atas, dipilih margin of error sebesar **8,5%** ($e = 0{,}085$) yang menghasilkan ukuran sampel minimum sebesar 128 responden. Dengan mempertimbangkan keterbatasan waktu dan tenaga serta ketersediaan responden di lapangan, jumlah responden yang berhasil dikumpulkan adalah sebanyak **129 responden** yang telah memenuhi syarat ukuran sampel minimum.
 
 ```{r sampel-final}
 # Margin of error yang dipilih
 e_final <- 0.085
-n_target <- 128  # jumlah responden yang berhasil dikumpulkan
+n_target <- 129  # jumlah responden yang berhasil dikumpulkan
 
 # Perhitungan
 numerator <- N * Z^2 * p * q
@@ -287,7 +287,7 @@ angkatan <- data.frame(
   N_h = c(1562, 1804, 1548)
 )
 
-n_sampel <- n_target  # 128 responden
+n_sampel <- n_target  # 129 responden
 
 cat("============================================================\n")
 cat("DISTRIBUSI SAMPEL PER ANGKATAN\n")
@@ -300,7 +300,7 @@ angkatan$n_hitung_exact <- angkatan$N_h / N * n_sampel
 cat(sprintf("Rumus: n_h = (N_h / N) x n\n\n"))
 
 # Responden yang berhasil dikumpulkan per angkatan
-angkatan$n_h <- c(28, 53, 47)
+angkatan$n_h <- c(41, 47, 41)
 
 for (i in 1:nrow(angkatan)) {
   cat(sprintf("  n_%d = N_h/N x n = %d/%d x %d = %.2f ≈ %d responden\n",
@@ -342,7 +342,7 @@ pop_dept <- data.frame(
     624    # Kesehatan
   ),
   N_h = rep(c(1562, 1804, 1548), each = 3),
-  n_h = rep(c(28, 53, 47), each = 3)
+  n_h = rep(c(41, 47, 41), each = 3)
 )
 
 # Hitung sampel per departemen (proporsional)
@@ -387,10 +387,10 @@ for (ang in c(2023, 2024, 2025)) {
 # Tabel pembagian sampel (responden yang berhasil dikumpulkan)
 tabel_sampel <- data.frame(
   Angkatan = c("2023", "2024", "2025", "**Total**"),
-  Teknik = c(7, 12, 17, 36),
-  Bisnis = c(13, 23, 17, 53),
-  Kesehatan = c(8, 18, 13, 39),
-  Total = c(28, 53, 47, 128)
+  Teknik = c(7, 8, 8, 23),
+  Bisnis = c(17, 19, 17, 53),
+  Kesehatan = c(17, 20, 16, 53),
+  Total = c(41, 47, 41, 129)
 )
 
 knitr::kable(tabel_sampel,
@@ -398,11 +398,11 @@ knitr::kable(tabel_sampel,
              caption = "Tabel 3.5 Pembagian Sampel per Angkatan dan Departemen")
 
 cat("\nVerifikasi total:\n")
-cat(sprintf("  Total per angkatan  : 28 + 53 + 47 = %d ✓\n", 28+53+47))
-cat(sprintf("  Total Teknik        : 7 + 12 + 17 = %d\n", 7+12+17))
-cat(sprintf("  Total Bisnis        : 13 + 23 + 17 = %d\n", 13+23+17))
-cat(sprintf("  Total Kesehatan     : 8 + 18 + 13 = %d\n", 8+18+13))
-cat(sprintf("  Grand Total         : 36 + 53 + 39 = %d ✓\n", 36+53+39))
+cat(sprintf("  Total per angkatan  : 41 + 47 + 41 = %d ✓\n", 41+47+41))
+cat(sprintf("  Total Teknik        : 7 + 8 + 8 = %d\n", 7+8+8))
+cat(sprintf("  Total Bisnis        : 17 + 19 + 17 = %d\n", 17+19+17))
+cat(sprintf("  Total Kesehatan     : 17 + 20 + 16 = %d\n", 17+20+16))
+cat(sprintf("  Grand Total         : 23 + 53 + 53 = %d ✓\n", 23+53+53))
 ```
 
 # Ringkasan
