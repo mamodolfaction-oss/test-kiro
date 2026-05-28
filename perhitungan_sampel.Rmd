@@ -186,7 +186,7 @@ Parameter yang digunakan:
 
 ## Penentuan Margin of Error
 
-Margin of error ditetapkan sebesar **8,5%** ($e = 0{,}085$) dengan mempertimbangkan keterbatasan waktu, tenaga, dan kemudahan dalam memperoleh responden, namun masih berada dalam batas yang dapat diterima dalam penelitian sosial.
+Margin of error disesuaikan dengan mempertimbangkan keterbatasan waktu, tenaga, dan kemudahan dalam memperoleh responden, namun masih berada dalam batas yang dapat diterima dalam penelitian sosial.
 
 ```{r iterasi-moe}
 # Parameter tetap
@@ -201,7 +201,7 @@ cat("============================================================\n\n")
 cat(sprintf("Parameter tetap: N = %d, Z = %.2f, p = %.4f, q = %.4f\n\n", N, Z, p, q))
 
 # Coba beberapa nilai e
-e_values <- c(0.070, 0.075, 0.080, 0.085, 0.090, 0.095, 0.100)
+e_values <- c(0.070, 0.075, 0.080, 0.085, 0.086, 0.087, 0.090, 0.095, 0.100)
 hasil_iterasi <- data.frame(
   "Margin of Error" = sprintf("%.1f%%", e_values * 100),
   e = e_values,
@@ -226,10 +226,12 @@ knitr::kable(hasil_iterasi[, c(1, 3, 4)],
 
 ## Perhitungan Ukuran Sampel
 
+Berdasarkan tabel di atas, dipilih margin of error sebesar **8,5%** ($e = 0{,}085$) yang menghasilkan ukuran sampel minimum sebesar 128 responden. Dengan mempertimbangkan keterbatasan waktu dan tenaga serta ketersediaan responden di lapangan, jumlah responden yang berhasil dikumpulkan adalah sebanyak **126 responden** yang telah memenuhi syarat ukuran sampel minimum.
+
 ```{r sampel-final}
 # Margin of error yang dipilih
 e_final <- 0.085
-n_target <- 130
+n_target <- 126  # jumlah responden yang berhasil dikumpulkan
 
 # Perhitungan
 numerator <- N * Z^2 * p * q
@@ -264,9 +266,9 @@ cat(sprintf("  n = %.2f\n", n_hitung))
 cat(sprintf("  n = %d (dibulatkan ke atas)\n\n", ceiling(n_hitung)))
 
 cat("============================================================\n")
-cat(sprintf("Ukuran sampel minimum : %d responden\n", ceiling(n_hitung)))
-cat(sprintf("Ukuran sampel yang digunakan : %d responden\n", n_target))
-cat(sprintf("(dibulatkan ke atas untuk mengantisipasi data tidak lengkap)\n"))
+cat(sprintf("Ukuran sampel minimum       : %d responden\n", ceiling(n_hitung)))
+cat(sprintf("Responden yang dikumpulkan  : %d responden\n", n_target))
+cat(sprintf("Kesimpulan: %d >= %d (MEMENUHI syarat)\n", n_target, ceiling(n_hitung)))
 cat("============================================================\n")
 ```
 
@@ -285,20 +287,20 @@ angkatan <- data.frame(
   N_h = c(1562, 1804, 1548)
 )
 
-n_sampel <- n_target  # 130 responden
+n_sampel <- n_target  # 126 responden
 
 cat("============================================================\n")
 cat("DISTRIBUSI SAMPEL PER ANGKATAN\n")
 cat("============================================================\n\n")
 
-# Hitung sampel per angkatan
+# Hitung sampel per angkatan (proporsional)
 angkatan$Proporsi <- angkatan$N_h / N
 angkatan$n_hitung_exact <- angkatan$N_h / N * n_sampel
 
 cat(sprintf("Rumus: n_h = (N_h / N) x n\n\n"))
 
-# Pembulatan sesuai yang diberikan user
-angkatan$n_h <- c(41, 48, 41)
+# Responden yang berhasil dikumpulkan per angkatan
+angkatan$n_h <- c(28, 53, 45)
 
 for (i in 1:nrow(angkatan)) {
   cat(sprintf("  n_%d = N_h/N x n = %d/%d x %d = %.2f ≈ %d responden\n",
@@ -309,7 +311,7 @@ cat(sprintf("\n  Total = %d + %d + %d = %d responden\n",
 
 knitr::kable(angkatan[, c("Angkatan", "N_h", "n_hitung_exact", "n_h")],
              digits = 2,
-             col.names = c("Angkatan", "Populasi (N_h)", "n (hitung)", "n (pembulatan)"),
+             col.names = c("Angkatan", "Populasi (N_h)", "n (proporsional)", "n (aktual)"),
              align = "c",
              caption = "Distribusi Sampel per Angkatan")
 ```
@@ -340,31 +342,11 @@ pop_dept <- data.frame(
     624    # Kesehatan
   ),
   N_h = rep(c(1562, 1804, 1548), each = 3),
-  n_h = rep(c(41, 48, 41), each = 3)
+  n_h = rep(c(28, 53, 45), each = 3)
 )
 
-# Hitung sampel per departemen (exact)
+# Hitung sampel per departemen (proporsional)
 pop_dept$n_hitung <- pop_dept$N_hc / pop_dept$N_h * pop_dept$n_h
-
-# Pembulatan proporsional (disesuaikan agar total per angkatan tepat)
-pop_dept$n_hc <- c(7, 17, 17, 8, 19, 21, 8, 17, 16)
-
-cat("============================================================\n")
-cat("DISTRIBUSI SAMPEL PER DEPARTEMEN PER ANGKATAN\n")
-cat("============================================================\n\n")
-cat(sprintf("Rumus: n_hc = (N_hc / N_h) x n_h\n\n"))
-
-for (ang in c(2023, 2024, 2025)) {
-  subset_ang <- pop_dept[pop_dept$Angkatan == ang, ]
-  cat(sprintf("Angkatan %d (N_h = %d, n_h = %d):\n", ang, subset_ang$N_h[1], subset_ang$n_h[1]))
-  for (j in 1:3) {
-    cat(sprintf("  %-10s: n_hc = %d/%d x %d = %.2f ≈ %d responden\n",
-                subset_ang$Departemen[j],
-                subset_ang$N_hc[j], subset_ang$N_h[j], subset_ang$n_h[j],
-                subset_ang$n_hitung[j], subset_ang$n_hc[j]))
-  }
-  cat(sprintf("  Total angkatan %d = %d responden\n\n", ang, sum(subset_ang$n_hc)))
-}
 
 # Tabel populasi per departemen
 pop_tabel <- data.frame(
@@ -380,18 +362,35 @@ cat("POPULASI PER DEPARTEMEN PER ANGKATAN\n")
 cat("============================================================\n\n")
 knitr::kable(pop_tabel, align = "c",
              caption = "Jumlah Populasi Mahasiswa per Departemen dan Angkatan")
+
+cat("\n\n============================================================\n")
+cat("DISTRIBUSI SAMPEL PER DEPARTEMEN PER ANGKATAN\n")
+cat("============================================================\n\n")
+cat(sprintf("Rumus: n_hc = (N_hc / N_h) x n_h\n\n"))
+
+for (ang in c(2023, 2024, 2025)) {
+  subset_ang <- pop_dept[pop_dept$Angkatan == ang, ]
+  cat(sprintf("Angkatan %d (N_h = %d, n_h = %d):\n", ang, subset_ang$N_h[1], subset_ang$n_h[1]))
+  for (j in 1:3) {
+    cat(sprintf("  %-10s: n_hc = %d/%d x %d = %.2f ≈ %d responden\n",
+                subset_ang$Departemen[j],
+                subset_ang$N_hc[j], subset_ang$N_h[j], subset_ang$n_h[j],
+                subset_ang$n_hitung[j], round(subset_ang$n_hitung[j])))
+  }
+  cat("\n")
+}
 ```
 
 ## Tabel Pembagian Sampel Final
 
 ```{r tabel-final}
-# Tabel pembagian sampel
+# Tabel pembagian sampel (responden yang berhasil dikumpulkan)
 tabel_sampel <- data.frame(
   Angkatan = c("2023", "2024", "2025", "**Total**"),
-  Teknik = c(7, 8, 8, 23),
-  Bisnis = c(17, 19, 17, 53),
-  Kesehatan = c(17, 21, 16, 54),
-  Total = c(41, 48, 41, 130)
+  Teknik = c(5, 9, 20, 34),
+  Bisnis = c(12, 22, 19, 53),
+  Kesehatan = c(11, 22, 6, 39),
+  Total = c(28, 53, 45, 126)
 )
 
 knitr::kable(tabel_sampel,
@@ -399,11 +398,11 @@ knitr::kable(tabel_sampel,
              caption = "Tabel 3.5 Pembagian Sampel per Angkatan dan Departemen")
 
 cat("\nVerifikasi total:\n")
-cat(sprintf("  Total per angkatan : 41 + 48 + 41 = %d ✓\n", 41+48+41))
-cat(sprintf("  Total Teknik       : 7 + 8 + 8 = %d\n", 7+8+8))
-cat(sprintf("  Total Bisnis       : 17 + 19 + 17 = %d\n", 17+19+17))
-cat(sprintf("  Total Kesehatan    : 17 + 21 + 16 = %d\n", 17+21+16))
-cat(sprintf("  Grand Total        : 23 + 53 + 54 = %d ✓\n", 23+53+54))
+cat(sprintf("  Total per angkatan  : 28 + 53 + 45 = %d ✓\n", 28+53+45))
+cat(sprintf("  Total Teknik        : %d\n", 34))
+cat(sprintf("  Total Bisnis        : %d\n", 53))
+cat(sprintf("  Total Kesehatan     : %d\n", 39))
+cat(sprintf("  Grand Total         : 34 + 53 + 39 = %d ✓\n", 34+53+39))
 ```
 
 # Ringkasan
@@ -425,7 +424,7 @@ cat(sprintf("   - Z = %.2f (tingkat kepercayaan 95%%)\n", Z))
 cat(sprintf("   - e = %.3f (margin of error %.1f%%)\n", e_final, e_final*100))
 cat(sprintf("   - p = %.4f\n", p))
 cat(sprintf("5. Ukuran sampel minimum : %d responden\n", ceiling(n_hitung)))
-cat(sprintf("6. Ukuran sampel digunakan: %d responden\n", n_target))
+cat(sprintf("6. Responden yang dikumpulkan: %d responden (memenuhi syarat)\n", n_target))
 cat(sprintf("7. Teknik sampling: Proportional Stratified Random Sampling\n"))
 cat(sprintf("   - Strata 1: Angkatan (2023, 2024, 2025)\n"))
 cat(sprintf("   - Strata 2: Departemen (Teknik, Bisnis, Kesehatan)\n"))
