@@ -353,25 +353,40 @@ svg.fc .lt{font-size:10px;fill:#64748b}
 <h2>ATI dan ASN</h2>
 <div class="card">
 <h3>Definisi</h3>
-<p><strong>ATI (Average Total Inspection)</strong> adalah rata-rata jumlah total item yang diinspeksi per lot.</p>
-<p><strong>ASN (Average Sample Number)</strong> adalah rata-rata jumlah sampel yang diperiksa sebelum keputusan.</p>
+<p><strong>ATI (Average Total Inspection)</strong> adalah rata-rata jumlah total item yang diinspeksi per lot, termasuk inspeksi 100% untuk lot yang ditolak.</p>
+<p><strong>ASN (Average Sample Number)</strong> adalah rata-rata jumlah sampel yang perlu diperiksa sebelum keputusan dibuat.</p>
 <div class="formula-box">
 <p><strong>ATI:</strong> $$ATI = n + (1 - P_a)(N - n)$$</p>
-<p><strong>ASN Single:</strong> $$ASN = n$$</p>
+<p><strong>ASN Single:</strong> $$ASN = n \quad \text{(konstan)}$$</p>
 <p><strong>ASN Double:</strong> $$ASN = n_1 + n_2[1 - P(d_1 \leq c_1) - P(d_1 \geq r_1)]$$</p>
 </div>
 </div>
 <div class="card">
-<h3>Grafik ATI dan ASN Interaktif</h3>
+<h3>Kurva ATI</h3>
 <div class="controls">
 <div><label>n:</label><input type="range" id="ati-n" value="50" min="10" max="200" oninput="document.getElementById('ati-nv').textContent=this.value"><span class="val" id="ati-nv">50</span></div>
 <div><label>c:</label><input type="range" id="ati-c" value="3" min="0" max="15" oninput="document.getElementById('ati-cv').textContent=this.value"><span class="val" id="ati-cv">3</span></div>
 <div><label>N:</label><input type="number" id="ati-N" value="1000" min="100" max="10000"></div>
-<div><button class="btn btn-primary" onclick="drawATI()">Gambar ATI & ASN</button></div>
+<div><button class="btn btn-primary" onclick="drawATICurve()">Gambar Kurva ATI</button></div>
 </div>
 <div class="chart-container"><canvas id="atiChart"></canvas></div>
 <div id="ati-calc" class="calc-steps" style="display:none"></div>
 <div id="ati-interp" class="interp-box" style="display:none"></div>
+</div>
+<div class="card">
+<h3>Kurva ASN</h3>
+<div class="controls">
+<div><label>n (single):</label><input type="number" id="asn-n" value="50" min="5" max="200"></div>
+<div><label>c:</label><input type="number" id="asn-c" value="3" min="0" max="15"></div>
+<div><label>n1 (double):</label><input type="number" id="asn-n1" value="25" min="5" max="200"></div>
+<div><label>n2 (double):</label><input type="number" id="asn-n2" value="50" min="5" max="200"></div>
+<div><label>c1:</label><input type="number" id="asn-c1" value="1" min="0" max="10"></div>
+<div><label>r1:</label><input type="number" id="asn-r1" value="4" min="1" max="15"></div>
+<div><button class="btn btn-primary" onclick="drawASNCurve()">Gambar Kurva ASN</button></div>
+</div>
+<div class="chart-container"><canvas id="asnChart"></canvas></div>
+<div id="asn-calc" class="calc-steps" style="display:none"></div>
+<div id="asn-interp" class="interp-box" style="display:none"></div>
 </div>
 </div>
 
@@ -590,56 +605,89 @@ function drawAOQ(){
 
 
 <script>
-// ===== ATI & ASN WITH CALCULATION STEPS =====
-let atiChart=null;
-function drawATI(){
+// ===== ATI & ASN AS SEPARATE CURVES =====
+let atiChart=null,asnChart=null;
+function drawATICurve(){
     const n=+document.getElementById('ati-n').value,c=+document.getElementById('ati-c').value,N=+document.getElementById('ati-N').value;
-    const pVals=[],atiVals=[],asnSingle=[],asnDouble=[];
-    const n1=Math.floor(n*0.5),n2d=n,c1d=Math.max(0,Math.floor(c*0.4)),r1d=c+1;
-    for(let p=0;p<=0.25;p+=0.005){
-        const pa=Pa(p,n,c);pVals.push((p*100).toFixed(1));
-        atiVals.push(n+(1-pa)*(N-n));asnSingle.push(n);
-        const pA1=binCDF(c1d,n1,p),pR1=1-binCDF(r1d-1,n1,p);
-        asnDouble.push(n1+n2d*Math.max(0,1-pA1-pR1));
-    }
+    const pVals=[],atiVals=[];
+    for(let p=0;p<=0.25;p+=0.005){const pa=Pa(p,n,c);pVals.push((p*100).toFixed(1));atiVals.push(n+(1-pa)*(N-n));}
     const ctx=document.getElementById('atiChart').getContext('2d');if(atiChart)atiChart.destroy();
     atiChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
         {label:'ATI',data:atiVals,borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,.06)',fill:true,tension:.4,pointRadius:0},
-        {label:`n=${n} (sampel saja)`,data:pVals.map(()=>n),borderColor:'#059669',borderDash:[5,5],pointRadius:0,fill:false},
-        {label:`N=${N} (100%)`,data:pVals.map(()=>N),borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,fill:false},
-        {label:`ASN Single=${n}`,data:asnSingle,borderColor:'#2563eb',borderDash:[3,3],pointRadius:0,fill:false,hidden:true},
-        {label:`ASN Double (n1=${n1},n2=${n2d})`,data:asnDouble,borderColor:'#d97706',tension:.4,pointRadius:0,fill:false,hidden:true}
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`ATI & ASN (n=${n}, c=${c}, N=${N})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'Jumlah Item',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
-    // Calculation steps
+        {label:`n=${n} (minimum)`,data:pVals.map(()=>n),borderColor:'#059669',borderDash:[5,5],pointRadius:0,fill:false},
+        {label:`N=${N} (maksimum)`,data:pVals.map(()=>N),borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,fill:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva ATI (n=${n}, c=${c}, N=${N})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'ATI (item)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
+    // ATI Calculation steps
+    const pa1=Pa(0.01,n,c),ati1=n+(1-pa1)*(N-n);
     const pa5=Pa(0.05,n,c),ati5=n+(1-pa5)*(N-n);
     const pa10=Pa(0.10,n,c),ati10=n+(1-pa10)*(N-n);
-    const pa1=Pa(0.01,n,c),ati1=n+(1-pa1)*(N-n);
-    let calc=`<strong>Langkah Perhitungan ATI dan ASN (n=${n}, c=${c}, N=${N}):</strong><br><br>`;
-    calc+=`1. <strong>Rumus ATI:</strong> ATI = n + (1 - Pa) x (N - n)<br>`;
+    let calc=`<strong>Langkah Perhitungan ATI (n=${n}, c=${c}, N=${N}):</strong><br><br>`;
+    calc+=`1. <strong>Rumus:</strong> ATI = n + (1 - Pa(p)) x (N - n)<br>`;
     calc+=`2. <strong>Pada p = 1%:</strong><br>`;
     calc+=`&nbsp;&nbsp;&nbsp;Pa(0.01) = ${pa1.toFixed(6)}<br>`;
-    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa1.toFixed(6)}) x (${N} - ${n}) = ${n} + ${((1-pa1)*(N-n)).toFixed(2)} = <strong>${ati1.toFixed(1)} item</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa1.toFixed(4)}) x (${N} - ${n}) = ${n} + ${((1-pa1)*(N-n)).toFixed(2)} = <strong>${ati1.toFixed(1)} item</strong><br>`;
     calc+=`3. <strong>Pada p = 5%:</strong><br>`;
     calc+=`&nbsp;&nbsp;&nbsp;Pa(0.05) = ${pa5.toFixed(6)}<br>`;
-    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa5.toFixed(6)}) x ${N-n} = <strong>${ati5.toFixed(1)} item</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa5.toFixed(4)}) x ${N-n} = <strong>${ati5.toFixed(1)} item</strong><br>`;
     calc+=`4. <strong>Pada p = 10%:</strong><br>`;
     calc+=`&nbsp;&nbsp;&nbsp;Pa(0.10) = ${pa10.toFixed(6)}<br>`;
-    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa10.toFixed(6)}) x ${N-n} = <strong>${ati10.toFixed(1)} item</strong><br>`;
-    calc+=`5. <strong>ASN Single Sampling:</strong> ASN = n = ${n} (konstan untuk semua p)<br>`;
-    calc+=`6. <strong>ASN Double Sampling (n1=${n1}, n2=${n2d}, c1=${c1d}, r1=${r1d}):</strong><br>`;
-    const pA1_5=binCDF(c1d,n1,0.05),pR1_5=1-binCDF(r1d-1,n1,0.05);
-    calc+=`&nbsp;&nbsp;&nbsp;Pada p=5%: P(accept tahap1)=${pA1_5.toFixed(4)}, P(reject tahap1)=${pR1_5.toFixed(4)}<br>`;
-    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2 diperlukan) = 1 - ${pA1_5.toFixed(4)} - ${pR1_5.toFixed(4)} = ${(1-pA1_5-pR1_5).toFixed(4)}<br>`;
-    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2d} x ${(Math.max(0,1-pA1_5-pR1_5)).toFixed(4)} = <strong>${(n1+n2d*Math.max(0,1-pA1_5-pR1_5)).toFixed(1)} item</strong>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa10.toFixed(4)}) x ${N-n} = <strong>${ati10.toFixed(1)} item</strong>`;
     document.getElementById('ati-calc').style.display='block';document.getElementById('ati-calc').innerHTML=calc;
-    // Interpretation
-    let interp=`<strong>Interpretasi Hasil:</strong><br><br>`;
-    interp+=`- <strong>Pada p = 1% (kualitas baik):</strong> ATI = ${ati1.toFixed(0)} item. Karena Pa tinggi (${(pa1*100).toFixed(1)}%), hampir semua lot diterima hanya dengan memeriksa sampel (n=${n}). Inspeksi sangat efisien.<br>`;
-    interp+=`- <strong>Pada p = 5%:</strong> ATI = ${ati5.toFixed(0)} item. ${ati5>N*0.5?'Lebih dari setengah lot perlu diinspeksi total, menunjukkan banyak lot ditolak.':'Inspeksi masih relatif efisien.'}<br>`;
-    interp+=`- <strong>Pada p = 10%:</strong> ATI = ${ati10.toFixed(0)} item (${((ati10/N)*100).toFixed(1)}% dari lot). Hampir seluruh lot ditolak dan harus diinspeksi 100%.<br>`;
-    interp+=`- <strong>Range ATI:</strong> Dari minimum ${n} item (jika semua diterima) hingga maksimum ${N} item (jika semua ditolak).<br>`;
-    interp+=`- <strong>ASN Double vs Single:</strong> Double sampling umumnya memerlukan lebih sedikit sampel karena lot sangat baik/buruk langsung diputuskan di tahap 1, tanpa perlu memeriksa seluruh n.`;
+    // ATI Interpretation
+    let interp=`<strong>Interpretasi Kurva ATI:</strong><br><br>`;
+    interp+=`- <strong>Pada p=1%:</strong> ATI = ${ati1.toFixed(0)} item. Pa sangat tinggi (${(pa1*100).toFixed(1)}%), hampir semua lot diterima hanya dengan sampel n=${n}. Inspeksi sangat efisien.<br>`;
+    interp+=`- <strong>Pada p=5%:</strong> ATI = ${ati5.toFixed(0)} item (${((ati5/N)*100).toFixed(1)}% dari lot). ${ati5>N*0.5?'Banyak lot ditolak sehingga inspeksi total meningkat drastis.':'Inspeksi masih cukup efisien.'}<br>`;
+    interp+=`- <strong>Pada p=10%:</strong> ATI = ${ati10.toFixed(0)} item (${((ati10/N)*100).toFixed(1)}% dari lot). Hampir semua lot ditolak, mendekati inspeksi 100%.<br>`;
+    interp+=`- <strong>Rentang:</strong> ATI berkisar dari ${n} (semua diterima) hingga ${N} (semua ditolak).<br>`;
+    interp+=`- <strong>Implikasi biaya:</strong> Semakin tinggi p, semakin besar biaya inspeksi karena lot yang ditolak harus diperiksa seluruhnya.`;
     document.getElementById('ati-interp').style.display='block';document.getElementById('ati-interp').innerHTML=interp;
+}
+function drawASNCurve(){
+    const n=+document.getElementById('asn-n').value,c=+document.getElementById('asn-c').value;
+    const n1=+document.getElementById('asn-n1').value,n2=+document.getElementById('asn-n2').value;
+    const c1=+document.getElementById('asn-c1').value,r1=+document.getElementById('asn-r1').value;
+    const pVals=[],asnSingle=[],asnDouble=[];
+    for(let p=0;p<=0.25;p+=0.005){
+        pVals.push((p*100).toFixed(1));
+        asnSingle.push(n);
+        const pA1=binCDF(c1,n1,p),pR1=1-binCDF(r1-1,n1,p);
+        asnDouble.push(n1+n2*Math.max(0,1-pA1-pR1));
+    }
+    const ctx=document.getElementById('asnChart').getContext('2d');if(asnChart)asnChart.destroy();
+    asnChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
+        {label:`ASN Single (n=${n})`,data:asnSingle,borderColor:'#2563eb',borderDash:[5,5],pointRadius:0,fill:false,borderWidth:2},
+        {label:`ASN Double (n1=${n1}, n2=${n2})`,data:asnDouble,borderColor:'#d97706',backgroundColor:'rgba(217,119,6,.06)',fill:true,tension:.4,pointRadius:0,borderWidth:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva ASN: Single vs Double Sampling`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'ASN (item)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
+    // ASN Calculation steps
+    const pA1_1=binCDF(c1,n1,0.01),pR1_1=1-binCDF(r1-1,n1,0.01),asn_d1=n1+n2*Math.max(0,1-pA1_1-pR1_1);
+    const pA1_5=binCDF(c1,n1,0.05),pR1_5=1-binCDF(r1-1,n1,0.05),asn_d5=n1+n2*Math.max(0,1-pA1_5-pR1_5);
+    const pA1_10=binCDF(c1,n1,0.10),pR1_10=1-binCDF(r1-1,n1,0.10),asn_d10=n1+n2*Math.max(0,1-pA1_10-pR1_10);
+    let calc=`<strong>Langkah Perhitungan ASN:</strong><br><br>`;
+    calc+=`<strong>Single Sampling:</strong> ASN = n = ${n} (konstan untuk semua p)<br><br>`;
+    calc+=`<strong>Double Sampling (n1=${n1}, n2=${n2}, c1=${c1}, r1=${r1}):</strong><br>`;
+    calc+=`Rumus: ASN = n1 + n2 x [1 - P(d1 &le; c1) - P(d1 &ge; r1)]<br><br>`;
+    calc+=`1. <strong>Pada p = 1%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &le; ${c1}) = ${pA1_1.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &ge; ${r1}) = ${pR1_1.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2) = 1 - ${pA1_1.toFixed(4)} - ${pR1_1.toFixed(4)} = ${(Math.max(0,1-pA1_1-pR1_1)).toFixed(4)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2} x ${(Math.max(0,1-pA1_1-pR1_1)).toFixed(4)} = <strong>${asn_d1.toFixed(1)} item</strong><br>`;
+    calc+=`2. <strong>Pada p = 5%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &le; ${c1}) = ${pA1_5.toFixed(6)}, P(d1 &ge; ${r1}) = ${pR1_5.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2) = ${(Math.max(0,1-pA1_5-pR1_5)).toFixed(4)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2} x ${(Math.max(0,1-pA1_5-pR1_5)).toFixed(4)} = <strong>${asn_d5.toFixed(1)} item</strong><br>`;
+    calc+=`3. <strong>Pada p = 10%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &le; ${c1}) = ${pA1_10.toFixed(6)}, P(d1 &ge; ${r1}) = ${pR1_10.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2) = ${(Math.max(0,1-pA1_10-pR1_10)).toFixed(4)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2} x ${(Math.max(0,1-pA1_10-pR1_10)).toFixed(4)} = <strong>${asn_d10.toFixed(1)} item</strong>`;
+    document.getElementById('asn-calc').style.display='block';document.getElementById('asn-calc').innerHTML=calc;
+    // ASN Interpretation
+    let interp=`<strong>Interpretasi Kurva ASN:</strong><br><br>`;
+    interp+=`- <strong>Single Sampling:</strong> ASN selalu konstan = ${n} item, tidak peduli kualitas lot.<br>`;
+    interp+=`- <strong>Double Sampling pada p=1%:</strong> ASN = ${asn_d1.toFixed(1)} item. ${asn_d1<n?`Hemat ${(n-asn_d1).toFixed(1)} item dibanding single karena banyak lot langsung diterima di tahap 1.`:'Tidak banyak penghematan.'}<br>`;
+    interp+=`- <strong>Double Sampling pada p=5%:</strong> ASN = ${asn_d5.toFixed(1)} item. Ini adalah area "abu-abu" dimana banyak lot memerlukan sampel kedua (P sampel 2 = ${((1-pA1_5-pR1_5)*100).toFixed(1)}%).<br>`;
+    interp+=`- <strong>Double Sampling pada p=10%:</strong> ASN = ${asn_d10.toFixed(1)} item. ${asn_d10<n?`Hemat ${(n-asn_d10).toFixed(1)} item karena banyak lot langsung ditolak di tahap 1.`:'Banyak lot langsung ditolak di tahap 1.'}<br>`;
+    interp+=`- <strong>Keunggulan Double Sampling:</strong> ASN paling kecil pada p sangat rendah (lot baik, langsung terima) dan p tinggi (lot buruk, langsung tolak). ASN mendekati single pada zona tengah dimana keputusan tidak pasti.`;
+    document.getElementById('asn-interp').style.display='block';document.getElementById('asn-interp').innerHTML=interp;
 }
 </script>
 
