@@ -8,60 +8,63 @@
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#e0e0e0;min-height:100vh;line-height:1.7}
-.container{max-width:1200px;margin:0 auto;padding:20px}
-h1{text-align:center;font-size:2.2em;margin:20px 0;color:#00d2ff}
-h2{color:#00d2ff;margin:30px 0 15px;font-size:1.6em;border-bottom:2px solid #3a7bd5;padding-bottom:8px}
-h3{color:#7dd3fc;margin:20px 0 10px;font-size:1.2em}
-.nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0;position:sticky;top:0;background:rgba(15,12,41,0.95);padding:15px;border-radius:10px;z-index:100}
-.nav button{padding:8px 16px;border:1px solid #3a7bd5;background:transparent;color:#7dd3fc;border-radius:20px;cursor:pointer;transition:all 0.3s;font-size:0.85em}
-.nav button:hover,.nav button.active{background:#3a7bd5;color:#fff}
-.section{display:none;animation:fadeIn 0.5s}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#ffffff;color:#1f2937;min-height:100vh;line-height:1.7}
+.container{max-width:1100px;margin:0 auto;padding:30px 20px}
+h1{text-align:center;font-size:2em;margin:20px 0;color:#1e3a5f;font-weight:700}
+h2{color:#1e3a5f;margin:30px 0 15px;font-size:1.5em;border-bottom:2px solid #e2e8f0;padding-bottom:8px;font-weight:600}
+h3{color:#334155;margin:20px 0 10px;font-size:1.15em;font-weight:600}
+.nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0;position:sticky;top:0;background:#fff;padding:15px;border-bottom:1px solid #e2e8f0;z-index:100;box-shadow:0 2px 4px rgba(0,0,0,0.04)}
+.nav button{padding:8px 16px;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:6px;cursor:pointer;transition:all 0.2s;font-size:0.85em}
+.nav button:hover{background:#f1f5f9;border-color:#64748b}
+.nav button.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.section{display:none;animation:fadeIn 0.3s}
 .section.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:25px;margin:20px 0;backdrop-filter:blur(10px)}
-.formula-box{background:rgba(0,210,255,0.05);border:1px solid #00d2ff33;border-radius:8px;padding:20px;margin:15px 0;overflow-x:auto}
-.chart-container{position:relative;height:400px;margin:20px 0;background:rgba(0,0,0,0.2);border-radius:12px;padding:15px}
-.controls{display:flex;flex-wrap:wrap;gap:15px;align-items:center;margin:15px 0;padding:15px;background:rgba(255,255,255,0.03);border-radius:8px}
-.controls label{color:#94a3b8;font-size:0.9em}
-.controls input[type=range]{width:150px;accent-color:#00d2ff}
-.controls input[type=number]{width:80px;padding:5px;background:#1e1b4b;border:1px solid #3a7bd5;color:#fff;border-radius:4px}
-.controls span.val{color:#00d2ff;font-weight:bold;min-width:40px;display:inline-block}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:25px;margin:20px 0;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.formula-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:20px;margin:15px 0;overflow-x:auto}
+.chart-container{position:relative;height:400px;margin:20px 0;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:15px}
+.controls{display:flex;flex-wrap:wrap;gap:15px;align-items:center;margin:15px 0;padding:15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px}
+.controls label{color:#475569;font-size:0.9em}
+.controls input[type=range]{width:150px;accent-color:#2563eb}
+.controls input[type=number]{width:80px;padding:5px 8px;background:#fff;border:1px solid #cbd5e1;color:#1f2937;border-radius:4px}
+.controls span.val{color:#2563eb;font-weight:600;min-width:40px;display:inline-block}
 .flowchart{display:flex;flex-direction:column;align-items:center;gap:10px;margin:20px 0}
-.flow-node{padding:12px 24px;border-radius:8px;text-align:center;min-width:200px;font-size:0.9em}
-.flow-start{background:#065f46;border:2px solid #10b981}
-.flow-process{background:#1e3a5f;border:2px solid #3b82f6}
-.flow-decision{background:#4a1d6a;border:2px solid #a855f7;transform:rotate(0deg);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);padding:30px;min-width:220px}
-.flow-decision-box{background:#4a1d6a;border:2px solid #a855f7;border-radius:8px;padding:12px 24px}
-.flow-end-accept{background:#14532d;border:2px solid #22c55e}
-.flow-end-reject{background:#7f1d1d;border:2px solid #ef4444}
-.flow-arrow{font-size:1.5em;color:#64748b}
+.flow-node{padding:12px 24px;border-radius:6px;text-align:center;min-width:200px;font-size:0.9em;color:#fff}
+.flow-start{background:#059669;border:none}
+.flow-process{background:#2563eb;border:none}
+.flow-decision{background:#7c3aed;border:none;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);padding:30px;min-width:220px}
+.flow-decision-box{background:#7c3aed;border:none;border-radius:6px;padding:12px 24px;color:#fff}
+.flow-end-accept{background:#16a34a;border:none}
+.flow-end-reject{background:#dc2626;border:none}
+.flow-arrow{font-size:1.2em;color:#64748b}
 .flow-row{display:flex;gap:40px;align-items:center}
-.flow-label{font-size:0.8em;color:#94a3b8;font-style:italic}
-.highlight{color:#fbbf24}
-.info-box{background:rgba(59,130,246,0.1);border-left:4px solid #3b82f6;padding:15px;margin:15px 0;border-radius:0 8px 8px 0}
+.flow-label{font-size:0.8em;color:#64748b;font-style:italic}
+.highlight{color:#b45309;font-weight:600}
+.info-box{background:#f0f9ff;border-left:4px solid #2563eb;padding:15px;margin:15px 0;border-radius:0 6px 6px 0;color:#1e40af}
 table{width:100%;border-collapse:collapse;margin:15px 0}
-th,td{padding:10px 15px;text-align:center;border:1px solid #334155}
-th{background:#1e3a5f;color:#7dd3fc}
-td{background:rgba(0,0,0,0.2)}
-.animation-container{position:relative;height:300px;background:rgba(0,0,0,0.3);border-radius:12px;margin:20px 0;overflow:hidden}
+th,td{padding:10px 15px;text-align:center;border:1px solid #e2e8f0}
+th{background:#f1f5f9;color:#1e3a5f;font-weight:600}
+td{background:#fff}
+.animation-container{position:relative;height:300px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:20px 0;overflow:hidden}
 .sample-item{position:absolute;width:20px;height:20px;border-radius:50%;transition:all 0.5s ease}
-.item-good{background:#22c55e}
-.item-defect{background:#ef4444}
-.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;transition:all 0.3s}
-.btn-primary{background:#3a7bd5;color:#fff}
-.btn-primary:hover{background:#2563eb}
+.item-good{background:#16a34a}
+.item-defect{background:#dc2626}
+.btn{padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:0.9em;transition:all 0.2s;font-weight:500}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
 .btn-success{background:#059669;color:#fff}
+.btn-success:hover{background:#047857}
 .btn-danger{background:#dc2626;color:#fff}
-.result-box{padding:15px;border-radius:8px;margin:10px 0;font-weight:bold;text-align:center;font-size:1.1em}
-.result-accept{background:rgba(34,197,94,0.2);border:2px solid #22c55e;color:#22c55e}
-.result-reject{background:rgba(239,68,68,0.2);border:2px solid #ef4444;color:#ef4444}
+.result-box{padding:15px;border-radius:6px;margin:10px 0;font-weight:600;text-align:center;font-size:1.05em}
+.result-accept{background:#f0fdf4;border:2px solid #16a34a;color:#15803d}
+.result-reject{background:#fef2f2;border:2px solid #dc2626;color:#b91c1c}
+select{padding:5px 10px;background:#fff;border:1px solid #cbd5e1;color:#1f2937;border-radius:4px}
 </style>
 </head>
 <body>
 <div class="container">
-<h1>📊 Pengendalian Statistik: Sampling Penerimaan</h1>
-<p style="text-align:center;color:#94a3b8;margin-bottom:10px">Materi Interaktif Lengkap dengan Animasi, Grafik Dinamis & Rumus Matematis</p>
+<h1>Pengendalian Statistik: Sampling Penerimaan</h1>
+<p style="text-align:center;color:#64748b;margin-bottom:10px">Materi Interaktif Lengkap dengan Animasi, Grafik Dinamis & Rumus Matematis</p>
 
 <div class="nav">
 <button onclick="showSection('intro')" class="active">Pendahuluan</button>
@@ -77,7 +80,7 @@ td{background:rgba(0,0,0,0.2)}
 
 <!-- SECTION: PENDAHULUAN -->
 <div id="intro" class="section active">
-<h2>📘 Pendahuluan Sampling Penerimaan</h2>
+<h2>Pendahuluan Sampling Penerimaan</h2>
 <div class="card">
 <h3>Apa itu Acceptance Sampling?</h3>
 <p>Acceptance Sampling (Sampling Penerimaan) adalah teknik pengendalian kualitas statistik yang digunakan untuk menentukan apakah suatu lot/batch produk diterima atau ditolak berdasarkan pemeriksaan sampel acak dari lot tersebut.</p>
@@ -126,7 +129,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: SINGLE SAMPLING PLAN -->
 <div id="single" class="section">
-<h2>🎯 Single Sampling Plan</h2>
+<h2>Single Sampling Plan</h2>
 <div class="card">
 <h3>Definisi & Prosedur</h3>
 <p>Dalam Single Sampling Plan, diambil <strong>satu sampel</strong> berukuran <em>n</em> dari lot berukuran <em>N</em>. Jika jumlah cacat <em>d</em> ≤ <em>c</em> (acceptance number), maka lot <strong>diterima</strong>. Jika <em>d</em> > <em>c</em>, lot <strong>ditolak</strong>.</p>
@@ -135,7 +138,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <p>$$P(accept) = P(d \leq c) = \sum_{d=0}^{c} \binom{n}{d} p^d (1-p)^{n-d}$$</p>
 <p style="margin-top:10px">Untuk lot terbatas (Distribusi Hypergeometric):</p>
 <p>$$P(accept) = \sum_{d=0}^{c} \frac{\binom{D}{d}\binom{N-D}{n-d}}{\binom{N}{n}}$$</p>
-<p style="color:#94a3b8;margin-top:10px">dimana D = jumlah cacat dalam lot, N = ukuran lot, n = ukuran sampel</p>
+<p style="color:#64748b;margin-top:10px">dimana D = jumlah cacat dalam lot, N = ukuran lot, n = ukuran sampel</p>
 </div>
 <div class="formula-box">
 <h3>Aproksimasi Poisson (untuk n besar, p kecil)</h3>
@@ -145,16 +148,16 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div class="card">
 <h3>Diagram Alur Single Sampling Plan</h3>
 <div class="flowchart">
-<div class="flow-node flow-start">📦 Lot diterima (N item)</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-node flow-start">Lot diterima (N item)</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-process">Ambil sampel acak (n item)</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-process">Inspeksi sampel, hitung jumlah cacat (d)</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-decision-box">Apakah d ≤ c ?</div>
 <div class="flow-row">
-<div><span class="flow-label">Ya ✅</span><br><div class="flow-node flow-end-accept">LOT DITERIMA</div></div>
-<div><span class="flow-label">Tidak ❌</span><br><div class="flow-node flow-end-reject">LOT DITOLAK</div></div>
+<div><span class="flow-label">Ya</span><br><div class="flow-node flow-end-accept">LOT DITERIMA</div></div>
+<div><span class="flow-label">Tidak</span><br><div class="flow-node flow-end-reject">LOT DITOLAK</div></div>
 </div>
 </div>
 </div>
@@ -165,7 +168,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div><label>Ukuran Sampel (n): </label><input type="number" id="ss-n" value="50" min="5" max="500"></div>
 <div><label>Acceptance Number (c): </label><input type="number" id="ss-c" value="3" min="0" max="20"></div>
 <div><label>% Cacat Aktual: </label><input type="range" id="ss-p" value="5" min="0" max="30" oninput="document.getElementById('ss-p-val').textContent=this.value+'%'"><span class="val" id="ss-p-val">5%</span></div>
-<div><button class="btn btn-primary" onclick="runSingleSampling()">🎲 Jalankan Simulasi</button></div>
+<div><button class="btn btn-primary" onclick="runSingleSampling()">Jalankan Simulasi</button></div>
 </div>
 <div id="ss-result"></div>
 <div id="ss-animation" class="animation-container" style="height:200px"></div>
@@ -175,7 +178,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: DOUBLE SAMPLING PLAN -->
 <div id="double" class="section">
-<h2>🎯🎯 Double Sampling Plan</h2>
+<h2>Double Sampling Plan</h2>
 <div class="card">
 <h3>Definisi & Prosedur</h3>
 <p>Double Sampling Plan memberikan kesempatan kedua sebelum memutuskan. Parameter: n₁, c₁, r₁ (tahap 1) dan n₂, c₂ (tahap 2).</p>
@@ -188,34 +191,34 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 </div>
 <div class="info-box">
 <strong>Aturan Keputusan:</strong><br>
-• Tahap 1: Jika d₁ ≤ c₁ → <span style="color:#22c55e">TERIMA</span><br>
-• Tahap 1: Jika d₁ ≥ r₁ → <span style="color:#ef4444">TOLAK</span><br>
+• Tahap 1: Jika d₁ ≤ c₁ → <span style="color:#16a34a">TERIMA</span><br>
+• Tahap 1: Jika d₁ ≥ r₁ → <span style="color:#dc2626">TOLAK</span><br>
 • Tahap 1: Jika c₁ < d₁ < r₁ → Ambil sampel kedua<br>
-• Tahap 2: Jika d₁ + d₂ ≤ c₂ → <span style="color:#22c55e">TERIMA</span><br>
-• Tahap 2: Jika d₁ + d₂ > c₂ → <span style="color:#ef4444">TOLAK</span>
+• Tahap 2: Jika d₁ + d₂ ≤ c₂ → <span style="color:#16a34a">TERIMA</span><br>
+• Tahap 2: Jika d₁ + d₂ > c₂ → <span style="color:#dc2626">TOLAK</span>
 </div>
 </div>
 <div class="card">
 <h3>Diagram Alur Double Sampling Plan</h3>
 <div class="flowchart">
-<div class="flow-node flow-start">📦 Lot (N item)</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-node flow-start">Lot (N item)</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-process">Ambil sampel pertama (n₁ item), hitung d₁</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-decision-box">d₁ ≤ c₁ ?</div>
 <div class="flow-row">
 <div><span class="flow-label">Ya</span><br><div class="flow-node flow-end-accept">TERIMA</div></div>
 <div>
 <span class="flow-label">Tidak</span>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-decision-box">d₁ ≥ r₁ ?</div>
 <div class="flow-row">
 <div><span class="flow-label">Ya</span><br><div class="flow-node flow-end-reject">TOLAK</div></div>
 <div>
 <span class="flow-label">Tidak (c₁ < d₁ < r₁)</span>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-process">Ambil sampel kedua (n₂), hitung d₂</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-decision-box">d₁ + d₂ ≤ c₂ ?</div>
 <div class="flow-row">
 <div><span class="flow-label">Ya</span><br><div class="flow-node flow-end-accept">TERIMA</div></div>
@@ -236,7 +239,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div><label>n₂:</label><input type="number" id="ds-n2" value="100" min="10" max="300"></div>
 <div><label>c₂:</label><input type="number" id="ds-c2" value="5" min="1" max="20"></div>
 <div><label>% Cacat:</label><input type="range" id="ds-p" value="4" min="0" max="20" oninput="document.getElementById('ds-p-val').textContent=this.value+'%'"><span class="val" id="ds-p-val">4%</span></div>
-<div><button class="btn btn-primary" onclick="runDoubleSampling()">🎲 Simulasi</button></div>
+<div><button class="btn btn-primary" onclick="runDoubleSampling()">Simulasi</button></div>
 </div>
 <div id="ds-result"></div>
 </div>
@@ -245,7 +248,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: MULTIPLE SAMPLING PLAN -->
 <div id="multiple" class="section">
-<h2>🎯🎯🎯 Multiple Sampling Plan</h2>
+<h2>Multiple Sampling Plan</h2>
 <div class="card">
 <h3>Definisi & Prosedur</h3>
 <p>Multiple Sampling Plan adalah generalisasi dari double sampling, dengan hingga <em>k</em> tahap pengambilan sampel. Setiap tahap memiliki parameter nᵢ, cᵢ, dan rᵢ.</p>
@@ -280,16 +283,16 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div class="card">
 <h3>Diagram Alur Multiple Sampling (Generalized)</h3>
 <div class="flowchart">
-<div class="flow-node flow-start">📦 Lot (N item)</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-node flow-start">Lot (N item)</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-process">Tahap i: Ambil sampel nᵢ, hitung D = Σdᵢ kumulatif</div>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-decision-box">D ≤ cᵢ ?</div>
 <div class="flow-row">
 <div><span class="flow-label">Ya</span><br><div class="flow-node flow-end-accept">TERIMA</div></div>
 <div>
 <span class="flow-label">Tidak</span>
-<div class="flow-arrow">⬇️</div>
+<div class="flow-arrow">&#9660;</div>
 <div class="flow-node flow-decision-box">D ≥ rᵢ ?</div>
 <div class="flow-row">
 <div><span class="flow-label">Ya</span><br><div class="flow-node flow-end-reject">TOLAK</div></div>
@@ -303,7 +306,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <h3>Simulasi Multiple Sampling</h3>
 <div class="controls">
 <div><label>% Cacat Lot:</label><input type="range" id="ms-p" value="5" min="0" max="25" oninput="document.getElementById('ms-p-val').textContent=this.value+'%'"><span class="val" id="ms-p-val">5%</span></div>
-<div><button class="btn btn-primary" onclick="runMultipleSampling()">🎲 Simulasi 7-Tahap</button></div>
+<div><button class="btn btn-primary" onclick="runMultipleSampling()">Simulasi 7-Tahap</button></div>
 </div>
 <div id="ms-result"></div>
 </div>
@@ -312,7 +315,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: KURVA OC -->
 <div id="oc" class="section">
-<h2>📈 Kurva OC (Operating Characteristic)</h2>
+<h2>Kurva OC (Operating Characteristic)</h2>
 <div class="card">
 <h3>Definisi</h3>
 <p>Kurva OC menggambarkan hubungan antara <strong>proporsi cacat dalam lot (p)</strong> dengan <strong>probabilitas penerimaan lot P(accept)</strong>. Kurva ini adalah alat utama untuk mengevaluasi kinerja suatu sampling plan.</p>
@@ -335,8 +338,8 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div class="controls">
 <div><label>Ukuran Sampel (n): </label><input type="range" id="oc-n" value="50" min="5" max="200" oninput="document.getElementById('oc-n-val').textContent=this.value"><span class="val" id="oc-n-val">50</span></div>
 <div><label>Acceptance Number (c): </label><input type="range" id="oc-c" value="3" min="0" max="15" oninput="document.getElementById('oc-c-val').textContent=this.value"><span class="val" id="oc-c-val">3</span></div>
-<div><button class="btn btn-primary" onclick="drawOCCurve()">📊 Gambar Kurva OC</button></div>
-<div><button class="btn btn-success" onclick="compareOC()">🔀 Bandingkan Plans</button></div>
+<div><button class="btn btn-primary" onclick="drawOCCurve()">Gambar Kurva OC</button></div>
+<div><button class="btn btn-success" onclick="compareOC()">Bandingkan Plans</button></div>
 </div>
 <div class="chart-container"><canvas id="ocChart"></canvas></div>
 <div id="oc-stats" class="info-box" style="display:none"></div>
@@ -355,7 +358,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: AOQ & AOQL -->
 <div id="aoq" class="section">
-<h2>📉 AOQ dan AOQL</h2>
+<h2>AOQ dan AOQL</h2>
 <div class="card">
 <h3>Average Outgoing Quality (AOQ)</h3>
 <p>AOQ adalah rata-rata kualitas outgoing setelah inspeksi, dengan asumsi lot yang ditolak akan di-inspeksi 100% dan semua item cacat diganti.</p>
@@ -364,12 +367,12 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <p>$$AOQ = \frac{P_a \cdot p \cdot (N-n)}{N}$$</p>
 <p style="margin-top:10px">Untuk N >> n (aproksimasi):</p>
 <p>$$AOQ \approx P_a \cdot p$$</p>
-<p style="color:#94a3b8;margin-top:10px">dimana P_a = probabilitas penerimaan lot, p = proporsi cacat aktual</p>
+<p style="color:#64748b;margin-top:10px">dimana P_a = probabilitas penerimaan lot, p = proporsi cacat aktual</p>
 </div>
 </div>
 <div class="card">
 <h3>Average Outgoing Quality Limit (AOQL)</h3>
-<p>AOQL adalah <strong>nilai maksimum</strong> dari kurva AOQ — kualitas terburuk yang mungkin lolos setelah inspeksi.</p>
+<p>AOQL adalah <strong>nilai maksimum</strong> dari kurva AOQ  -  kualitas terburuk yang mungkin lolos setelah inspeksi.</p>
 <div class="formula-box">
 <h3>Rumus AOQL</h3>
 <p>$$AOQL = \max_{0 \leq p \leq 1} \left[ AOQ(p) \right] = \max_{0 \leq p \leq 1} \left[ P_a(p) \cdot p \cdot \frac{N-n}{N} \right]$$</p>
@@ -386,7 +389,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div><label>n: </label><input type="range" id="aoq-n" value="50" min="10" max="200" oninput="document.getElementById('aoq-n-val').textContent=this.value"><span class="val" id="aoq-n-val">50</span></div>
 <div><label>c: </label><input type="range" id="aoq-c" value="3" min="0" max="15" oninput="document.getElementById('aoq-c-val').textContent=this.value"><span class="val" id="aoq-c-val">3</span></div>
 <div><label>N: </label><input type="number" id="aoq-N" value="1000" min="100" max="10000"></div>
-<div><button class="btn btn-primary" onclick="drawAOQCurve()">📊 Gambar AOQ</button></div>
+<div><button class="btn btn-primary" onclick="drawAOQCurve()">Gambar AOQ</button></div>
 </div>
 <div class="chart-container"><canvas id="aoqChart"></canvas></div>
 <div id="aoql-result" class="info-box" style="display:none"></div>
@@ -396,7 +399,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: ATI & ASN -->
 <div id="ati" class="section">
-<h2>📊 ATI dan ASN</h2>
+<h2>ATI dan ASN</h2>
 <div class="card">
 <h3>Average Total Inspection (ATI)</h3>
 <p>ATI adalah rata-rata jumlah total item yang diinspeksi per lot, termasuk inspeksi 100% untuk lot yang ditolak.</p>
@@ -429,8 +432,8 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div><label>n: </label><input type="range" id="ati-n" value="50" min="10" max="200" oninput="document.getElementById('ati-n-val').textContent=this.value"><span class="val" id="ati-n-val">50</span></div>
 <div><label>c: </label><input type="range" id="ati-c" value="3" min="0" max="15" oninput="document.getElementById('ati-c-val').textContent=this.value"><span class="val" id="ati-c-val">3</span></div>
 <div><label>N: </label><input type="number" id="ati-N" value="1000" min="100" max="10000"></div>
-<div><button class="btn btn-primary" onclick="drawATICurve()">📊 Gambar ATI</button></div>
-<div><button class="btn btn-success" onclick="drawASNCurve()">📊 Gambar ASN</button></div>
+<div><button class="btn btn-primary" onclick="drawATICurve()">Gambar ATI</button></div>
+<div><button class="btn btn-success" onclick="drawASNCurve()">Gambar ASN</button></div>
 </div>
 <div class="chart-container"><canvas id="atiChart"></canvas></div>
 <div class="chart-container"><canvas id="asnChart"></canvas></div>
@@ -440,13 +443,13 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 
 <!-- SECTION: SIMULATOR -->
 <div id="simulator" class="section">
-<h2>🎮 Simulator Sampling Komprehensif</h2>
+<h2>Simulator Sampling Komprehensif</h2>
 <div class="card">
 <h3>Monte Carlo Simulation</h3>
 <p>Jalankan ribuan simulasi untuk memverifikasi teori sampling plan secara empiris.</p>
 <div class="controls">
 <div><label>Plan:</label>
-<select id="sim-plan" style="padding:5px;background:#1e1b4b;border:1px solid #3a7bd5;color:#fff;border-radius:4px">
+<select id="sim-plan">
 <option value="single">Single Sampling</option>
 <option value="double">Double Sampling</option>
 </select>
@@ -456,7 +459,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div><label>n:</label><input type="number" id="sim-n" value="50" min="5"></div>
 <div><label>c:</label><input type="number" id="sim-c" value="3" min="0"></div>
 <div><label>% Cacat:</label><input type="range" id="sim-p" value="5" min="0" max="30" oninput="document.getElementById('sim-p-val').textContent=this.value+'%'"><span class="val" id="sim-p-val">5%</span></div>
-<div><button class="btn btn-primary" onclick="runMonteCarlo()">🚀 Jalankan Simulasi</button></div>
+<div><button class="btn btn-primary" onclick="runMonteCarlo()">Jalankan Simulasi</button></div>
 </div>
 <div id="mc-result"></div>
 <div class="chart-container"><canvas id="mcChart"></canvas></div>
@@ -464,7 +467,7 @@ Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir.
 <div class="card">
 <h3>Perbandingan Empiris vs Teoritis</h3>
 <div class="controls">
-<div><button class="btn btn-primary" onclick="runComparison()">📊 Bandingkan (1000 run per titik)</button></div>
+<div><button class="btn btn-primary" onclick="runComparison()">Bandingkan (1000 run per titik)</button></div>
 </div>
 <div class="chart-container"><canvas id="compChart"></canvas></div>
 </div>
@@ -559,7 +562,7 @@ function runSingleSampling() {
     const probAccept = Pa(p, n, c);
 
     let html = `<div class="result-box ${accepted ? 'result-accept' : 'result-reject'}">`;
-    html += `Hasil: ${accepted ? '✅ LOT DITERIMA' : '❌ LOT DITOLAK'}<br>`;
+    html += `Hasil: ${accepted ? 'LOT DITERIMA' : 'LOT DITOLAK'}<br>`;
     html += `<span style="font-size:0.8em;font-weight:normal">`;
     html += `Cacat ditemukan: d = ${defects} | Acceptance number: c = ${c} | `;
     html += `P(accept) teoritis = ${(probAccept * 100).toFixed(2)}%</span></div>`;
@@ -605,18 +608,18 @@ function runDoubleSampling() {
     html += `<strong>Tahap 1:</strong> n₁=${n1}, ditemukan d₁=${d1}<br>`;
 
     if (d1 <= c1) {
-        html += `<div class="result-box result-accept">✅ TERIMA pada Tahap 1 (d₁=${d1} ≤ c₁=${c1})</div>`;
+        html += `<div class="result-box result-accept">TERIMA pada Tahap 1 (d₁=${d1} ≤ c₁=${c1})</div>`;
     } else if (d1 >= r1) {
-        html += `<div class="result-box result-reject">❌ TOLAK pada Tahap 1 (d₁=${d1} ≥ r₁=${r1})</div>`;
+        html += `<div class="result-box result-reject">TOLAK pada Tahap 1 (d₁=${d1} ≥ r₁=${r1})</div>`;
     } else {
         html += `<em>c₁=${c1} < d₁=${d1} < r₁=${r1} → Ambil sampel kedua</em><br><br>`;
         let d2 = 0;
         for (let i = 0; i < n2; i++) if (Math.random() < p) d2++;
         html += `<strong>Tahap 2:</strong> n₂=${n2}, ditemukan d₂=${d2}, total = ${d1+d2}<br>`;
         if (d1 + d2 <= c2) {
-            html += `<div class="result-box result-accept">✅ TERIMA pada Tahap 2 (d₁+d₂=${d1+d2} ≤ c₂=${c2})</div>`;
+            html += `<div class="result-box result-accept">TERIMA pada Tahap 2 (d₁+d₂=${d1+d2} ≤ c₂=${c2})</div>`;
         } else {
-            html += `<div class="result-box result-reject">❌ TOLAK pada Tahap 2 (d₁+d₂=${d1+d2} > c₂=${c2})</div>`;
+            html += `<div class="result-box result-reject">TOLAK pada Tahap 2 (d₁+d₂=${d1+d2} > c₂=${c2})</div>`;
         }
     }
     html += '</div>';
@@ -643,13 +646,13 @@ function runMultipleSampling() {
 
         let decision = '';
         if (cumD <= stages[i].c) {
-            decision = '<span style="color:#22c55e">✅ TERIMA</span>';
+            decision = '<span style="color:#16a34a">TERIMA</span>';
             decided = true;
         } else if (cumD >= stages[i].r) {
-            decision = '<span style="color:#ef4444">❌ TOLAK</span>';
+            decision = '<span style="color:#dc2626">TOLAK</span>';
             decided = true;
         } else {
-            decision = '<span style="color:#fbbf24">→ Lanjut</span>';
+            decision = '<span style="color:#d97706">→ Lanjut</span>';
         }
 
         html += `<tr><td>${i+1}</td><td>${stages[i].n}</td><td>${di}</td><td>${cumD}</td><td>${stages[i].c}</td><td>${stages[i].r}</td><td>${decision}</td></tr>`;
@@ -657,7 +660,7 @@ function runMultipleSampling() {
     }
 
     if (!decided) {
-        html += `<tr><td colspan="7" style="color:#ef4444">Tahap terakhir: TOLAK (tidak ada keputusan sebelumnya)</td></tr>`;
+        html += `<tr><td colspan="7" style="color:#dc2626">Tahap terakhir: TOLAK (tidak ada keputusan sebelumnya)</td></tr>`;
     }
     html += '</table></div>';
     document.getElementById('ms-result').innerHTML = html;
@@ -694,8 +697,8 @@ function drawOCCurve() {
             datasets: [{
                 label: `OC Curve (n=${n}, c=${c})`,
                 data: paValues,
-                borderColor: '#00d2ff',
-                backgroundColor: 'rgba(0,210,255,0.1)',
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37,99,235,0.08)',
                 fill: true,
                 tension: 0.4,
                 pointRadius: 0
@@ -705,7 +708,7 @@ function drawOCCurve() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                title: { display: true, text: `Kurva OC: n=${n}, c=${c}`, color: '#fff', font: {size:16} },
+                title: { display: true, text: `Kurva OC: n=${n}, c=${c}`, color: '#1e3a5f', font: {size:16} },
                 legend: { labels: { color: '#94a3b8' } }
             },
             scales: {
@@ -730,7 +733,7 @@ function drawOCCurve() {
 
 function compareOC() {
     const plans = [
-        {n:50, c:2, color:'#00d2ff'}, {n:100, c:4, color:'#22c55e'},
+        {n:50, c:2, color:'#2563eb'}, {n:100, c:4, color:'#059669'},
         {n:50, c:5, color:'#fbbf24'}, {n:150, c:3, color:'#a855f7'}
     ];
     const pValues = [];
@@ -750,11 +753,11 @@ function compareOC() {
         data: { labels: pValues, datasets },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { title: { display: true, text: 'Perbandingan Kurva OC', color: '#fff', font:{size:16} },
+            plugins: { title: { display: true, text: 'Perbandingan Kurva OC', color: '#1e3a5f', font:{size:16} },
                       legend: { labels: { color: '#94a3b8' } } },
             scales: {
-                x: { title:{display:true,text:'p (%)',color:'#94a3b8'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#334155'} },
-                y: { title:{display:true,text:'P(Accept)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'}, min:0, max:1 }
+                x: { title:{display:true,text:'p (%)',color:'#475569'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#e2e8f0'} },
+                y: { title:{display:true,text:'P(Accept)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'}, min:0, max:1 }
             }
         }
     });
@@ -808,12 +811,12 @@ function drawAOQCurve() {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                title: { display: true, text: `Kurva AOQ (n=${n}, c=${c}, N=${N})`, color: '#fff', font:{size:16} },
+                title: { display: true, text: `Kurva AOQ (n=${n}, c=${c}, N=${N})`, color: '#1e3a5f', font:{size:16} },
                 legend: { labels: { color: '#94a3b8' } }
             },
             scales: {
-                x: { title:{display:true,text:'Incoming Quality p (%)',color:'#94a3b8'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#334155'} },
-                y: { title:{display:true,text:'AOQ (%)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'}, min:0 }
+                x: { title:{display:true,text:'Incoming Quality p (%)',color:'#475569'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#e2e8f0'} },
+                y: { title:{display:true,text:'AOQ (%)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'}, min:0 }
             }
         }
     });
@@ -876,12 +879,12 @@ function drawATICurve() {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                title: { display: true, text: `Kurva ATI (n=${n}, c=${c}, N=${N})`, color:'#fff', font:{size:16} },
+                title: { display: true, text: `Kurva ATI (n=${n}, c=${c}, N=${N})`, color:'#1e3a5f', font:{size:16} },
                 legend: { labels: { color: '#94a3b8' } }
             },
             scales: {
-                x: { title:{display:true,text:'p (%)',color:'#94a3b8'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#334155'} },
-                y: { title:{display:true,text:'ATI (item)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'}, min:0 }
+                x: { title:{display:true,text:'p (%)',color:'#475569'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#e2e8f0'} },
+                y: { title:{display:true,text:'ATI (item)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'}, min:0 }
             }
         }
     });
@@ -923,7 +926,7 @@ function drawASNCurve() {
                 {
                     label: `ASN Single (n=${n})`,
                     data: asnSingle,
-                    borderColor: '#00d2ff', borderDash: [5,5], pointRadius: 0, fill: false
+                    borderColor: '#2563eb', borderDash: [5,5], pointRadius: 0, fill: false
                 },
                 {
                     label: `ASN Double (n₁=${n1}, n₂=${n2})`,
@@ -937,12 +940,12 @@ function drawASNCurve() {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                title: { display: true, text: 'Kurva ASN: Single vs Double Sampling', color:'#fff', font:{size:16} },
+                title: { display: true, text: 'Kurva ASN: Single vs Double Sampling', color:'#1e3a5f', font:{size:16} },
                 legend: { labels: { color: '#94a3b8' } }
             },
             scales: {
-                x: { title:{display:true,text:'p (%)',color:'#94a3b8'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#334155'} },
-                y: { title:{display:true,text:'ASN (item)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'}, min:0 }
+                x: { title:{display:true,text:'p (%)',color:'#475569'}, ticks:{color:'#64748b',maxTicksLimit:15}, grid:{color:'#e2e8f0'} },
+                y: { title:{display:true,text:'ASN (item)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'}, min:0 }
             }
         }
     });
@@ -1005,21 +1008,21 @@ function runMonteCarlo() {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                title: { display: true, text: `Distribusi Jumlah Cacat (${runs} simulasi)`, color:'#fff', font:{size:16} },
+                title: { display: true, text: `Distribusi Jumlah Cacat (${runs} simulasi)`, color:'#1e3a5f', font:{size:16} },
                 legend: { display: false }
             },
             scales: {
-                x: { title:{display:true,text:'Jumlah Cacat (d)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'} },
-                y: { title:{display:true,text:'Frekuensi',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'} }
+                x: { title:{display:true,text:'Jumlah Cacat (d)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'} },
+                y: { title:{display:true,text:'Frekuensi',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'} }
             }
         }
     });
 
     document.getElementById('mc-result').innerHTML = `
-        <div class="result-box" style="background:rgba(0,210,255,0.1);border:2px solid #00d2ff;color:#00d2ff">
+        <div class="result-box" style="background:#eff6ff;border:2px solid #2563eb;color:#1e40af">
             <strong>Hasil Monte Carlo (${runs} simulasi):</strong><br>
             P(accept) Empiris = ${(empiricalPa*100).toFixed(2)}% | P(accept) Teoritis = ${(theoreticalPa*100).toFixed(2)}%<br>
-            <span style="font-size:0.85em">Hijau = diterima (d≤c=${c}), Merah = ditolak (d>c)</span>
+            <span style="font-size:0.85em">Hijau = diterima (d&lt;=c=${c}), Merah = ditolak (d&gt;c)</span>
         </div>`;
 }
 
@@ -1059,7 +1062,7 @@ function runComparison() {
                 {
                     label: 'Teoritis (Binomial)',
                     data: theoretical,
-                    borderColor: '#00d2ff', tension: 0.4, pointRadius: 0, fill: false
+                    borderColor: '#2563eb', tension: 0.4, pointRadius: 0, fill: false
                 },
                 {
                     label: `Empiris (${runs} runs/titik)`,
@@ -1072,12 +1075,12 @@ function runComparison() {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                title: { display: true, text: `Kurva OC: Teoritis vs Empiris (n=${n}, c=${c})`, color:'#fff', font:{size:16} },
+                title: { display: true, text: `Kurva OC: Teoritis vs Empiris (n=${n}, c=${c})`, color:'#1e3a5f', font:{size:16} },
                 legend: { labels: { color: '#94a3b8' } }
             },
             scales: {
-                x: { title:{display:true,text:'p (%)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'} },
-                y: { title:{display:true,text:'P(Accept)',color:'#94a3b8'}, ticks:{color:'#64748b'}, grid:{color:'#334155'}, min:0, max:1 }
+                x: { title:{display:true,text:'p (%)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'} },
+                y: { title:{display:true,text:'P(Accept)',color:'#475569'}, ticks:{color:'#64748b'}, grid:{color:'#e2e8f0'}, min:0, max:1 }
             }
         }
     });
