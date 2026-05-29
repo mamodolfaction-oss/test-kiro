@@ -109,6 +109,7 @@ svg.fc .lt{font-size:10px;fill:#64748b}
 <tr><td>LTPD</td><td>Lot Tolerance Percent Defective</td><td>Tingkat cacat maksimum dalam lot individual yang masih dapat ditoleransi</td></tr>
 <tr><td>&alpha;</td><td>Risiko produsen</td><td>Probabilitas menolak lot yang kualitasnya sebenarnya baik (kesalahan tipe I)</td></tr>
 <tr><td>&beta;</td><td>Risiko konsumen</td><td>Probabilitas menerima lot yang kualitasnya sebenarnya buruk (kesalahan tipe II)</td></tr>
+<tr><td>r</td><td>Bilangan penolakan (rejection number)</td><td>Jumlah minimum cacat dalam sampel yang menyebabkan lot langsung ditolak (digunakan pada double/multiple sampling)</td></tr>
 </table>
 </div>
 <div class="card">
@@ -189,6 +190,19 @@ svg.fc .lt{font-size:10px;fill:#64748b}
 - Tahap 1: Jika c1 &lt; d1 &lt; r1 maka ambil sampel kedua<br>
 - Tahap 2: Jika d1 + d2 &le; c2 maka TERIMA<br>
 - Tahap 2: Jika d1 + d2 &gt; c2 maka TOLAK
+</div>
+<h3>Tiga Kemungkinan Keputusan pada Tahap 1</h3>
+<table>
+<tr><th>Kondisi</th><th>Keputusan</th><th>Penjelasan</th></tr>
+<tr><td>d1 &le; c1</td><td style="color:#16a34a;font-weight:600">Langsung TERIMA</td><td>Jumlah cacat sangat sedikit, lot jelas berkualitas baik</td></tr>
+<tr><td>d1 &ge; r1</td><td style="color:#dc2626;font-weight:600">Langsung TOLAK</td><td>Jumlah cacat terlalu banyak, lot jelas berkualitas buruk</td></tr>
+<tr><td>c1 &lt; d1 &lt; r1</td><td style="color:#d97706;font-weight:600">Ambil sampel kedua</td><td>Hasil belum konklusif, perlu informasi tambahan dari sampel kedua</td></tr>
+</table>
+<div class="info-box">
+<strong>Contoh:</strong> Jika c1=1 dan r1=4, maka:<br>
+- d1 = 0 atau 1: langsung terima<br>
+- d1 = 4 atau lebih: langsung tolak<br>
+- d1 = 2 atau 3: belum pasti, lanjut ke sampel kedua
 </div>
 </div>
 <div class="card">
