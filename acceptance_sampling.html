@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sampling Penerimaan - Pengendalian Kualitas Statistik 4B</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Poppins',sans-serif;background:#fff;color:#1f2937;min-height:100vh;line-height:1.8}
+.container{max-width:1100px;margin:0 auto;padding:30px 20px}
+h1{text-align:center;font-size:1.8em;margin:20px 0 30px;color:#1e3a5f;font-weight:700}
+h2{color:#1e3a5f;margin:30px 0 15px;font-size:1.4em;border-bottom:2px solid #e2e8f0;padding-bottom:8px;font-weight:600}
+h3{color:#334155;margin:20px 0 10px;font-size:1.05em;font-weight:600}
+p,li,td,th,label{font-size:0.9em}
+.nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 30px;position:sticky;top:0;background:#fff;padding:15px 10px;border-bottom:1px solid #e2e8f0;z-index:100;box-shadow:0 2px 4px rgba(0,0,0,0.04)}
+.nav button{padding:8px 16px;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:6px;cursor:pointer;transition:all .2s;font-size:.82em;font-family:'Poppins',sans-serif;font-weight:500}
+.nav button:hover{background:#f1f5f9;border-color:#94a3b8}
+.nav button.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.section{display:none;animation:fadeIn .3s}.section.active{display:block}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:25px;margin:20px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.formula-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:20px;margin:15px 0;overflow-x:auto}
+.chart-container{position:relative;height:400px;margin:20px 0;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:15px}
+.controls{display:flex;flex-wrap:wrap;gap:15px;align-items:center;margin:15px 0;padding:15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px}
+.controls label{color:#475569;font-size:.85em;font-weight:500}
+.controls input[type=range]{width:150px;accent-color:#2563eb}
+.controls input[type=number]{width:80px;padding:5px 8px;background:#fff;border:1px solid #cbd5e1;color:#1f2937;border-radius:4px;font-family:'Poppins',sans-serif}
+.controls span.val{color:#2563eb;font-weight:600;min-width:40px;display:inline-block}
+.highlight{color:#b45309;font-weight:600}
+.info-box{background:#f0f9ff;border-left:4px solid #2563eb;padding:15px;margin:15px 0;border-radius:0 6px 6px 0;color:#1e3a5f}
+table{width:100%;border-collapse:collapse;margin:15px 0}
+th,td{padding:10px 12px;text-align:left;border:1px solid #e2e8f0}
+th{background:#f1f5f9;color:#1e3a5f;font-weight:600}
+td{background:#fff}
+.animation-container{position:relative;min-height:120px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:20px 0;overflow:hidden;padding:15px}
+.sample-item{position:absolute;width:18px;height:18px;border-radius:50%;transition:all .4s ease}
+.item-good{background:#16a34a}.item-defect{background:#dc2626}
+.btn{padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:.85em;transition:all .2s;font-weight:500;font-family:'Poppins',sans-serif}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
+.result-box{padding:15px;border-radius:6px;margin:10px 0;font-weight:600;text-align:center;font-size:1em}
+.result-accept{background:#f0fdf4;border:2px solid #16a34a;color:#15803d}
+.result-reject{background:#fef2f2;border:2px solid #dc2626;color:#b91c1c}
+select{padding:5px 10px;background:#fff;border:1px solid #cbd5e1;color:#1f2937;border-radius:4px;font-family:'Poppins',sans-serif}
+svg.fc{display:block;margin:20px auto;max-width:100%}
+svg.fc text{font-family:'Poppins',sans-serif;font-size:11px;fill:#1f2937}
+svg.fc .st{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+svg.fc .sp{fill:#f0fdf4;stroke:#16a34a;stroke-width:1.5}
+svg.fc .sd{fill:#fef3c7;stroke:#d97706;stroke-width:1.5}
+svg.fc .sio{fill:#ede9fe;stroke:#7c3aed;stroke-width:1.5}
+svg.fc .sa{fill:#dcfce7;stroke:#16a34a;stroke-width:2}
+svg.fc .sr{fill:#fee2e2;stroke:#dc2626;stroke-width:2}
+svg.fc .al{stroke:#64748b;stroke-width:1.4;fill:none;marker-end:url(#ah)}
+svg.fc .lt{font-size:10px;fill:#64748b}
+.ds-visual{display:flex;gap:20px;flex-wrap:wrap;margin:15px 0}
+.ds-stage{flex:1;min-width:250px;border:1px solid #e2e8f0;border-radius:8px;padding:15px;background:#fafafa}
+.ds-stage h4{font-size:.88em;font-weight:600;margin-bottom:8px;color:#334155}
+.ds-stage .items-grid{display:flex;flex-wrap:wrap;gap:3px;margin:8px 0}
+.ds-stage .dot{width:12px;height:12px;border-radius:50%}
+.ds-stage .dot-good{background:#86efac}.ds-stage .dot-bad{background:#fca5a5}
+.ds-stage .stage-info{font-size:.8em;color:#475569;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0}
+.calc-steps{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:18px;margin:15px 0;font-size:.88em;line-height:2}
+.calc-steps strong{color:#1e3a5f}
+.interp-box{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:15px;margin:15px 0;font-size:.88em;color:#92400e}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Pengendalian Statistik: Sampling Penerimaan</h1>
+<div class="nav">
+<button onclick="showSection('intro')" class="active">Pendahuluan</button>
+<button onclick="showSection('single')">Single Sampling</button>
+<button onclick="showSection('double')">Double Sampling</button>
+<button onclick="showSection('multiple')">Multiple Sampling</button>
+<button onclick="showSection('oc')">Kurva OC</button>
+<button onclick="showSection('aoq')">AOQ & AOQL</button>
+<button onclick="showSection('ati')">ATI & ASN</button>
+<button onclick="showSection('simulator')">Simulator</button>
+</div>
+
+
+<!-- ===================== PENDAHULUAN ===================== -->
+<div id="intro" class="section active">
+<h2>Pendahuluan Sampling Penerimaan</h2>
+<div class="card">
+<h3>Apa itu Acceptance Sampling?</h3>
+<p>Acceptance Sampling (Sampling Penerimaan) adalah teknik pengendalian kualitas statistik yang digunakan untuk menentukan apakah suatu lot/batch produk diterima atau ditolak berdasarkan pemeriksaan sampel acak dari lot tersebut.</p>
+<div class="info-box">
+<strong>Kapan digunakan?</strong><br>
+- Pengujian bersifat destruktif<br>
+- Biaya inspeksi 100% terlalu mahal<br>
+- Lot terlalu besar untuk diperiksa seluruhnya<br>
+- Informasi mengenai kualitas proses produksi terbatas
+</div>
+</div>
+<div class="card">
+<h3>Terminologi Penting</h3>
+<table>
+<tr><th>Simbol</th><th>Keterangan</th><th>Penjelasan</th></tr>
+<tr><td>N</td><td>Ukuran lot</td><td>Jumlah total item dalam satu batch/lot yang akan diinspeksi</td></tr>
+<tr><td>n</td><td>Ukuran sampel</td><td>Jumlah item yang diambil secara acak dari lot untuk diperiksa</td></tr>
+<tr><td>c</td><td>Bilangan penerimaan</td><td>Jumlah maksimum cacat dalam sampel agar lot masih bisa diterima</td></tr>
+<tr><td>d</td><td>Jumlah cacat</td><td>Jumlah item cacat yang ditemukan dalam sampel yang diperiksa</td></tr>
+<tr><td>p</td><td>Proporsi cacat</td><td>Rasio item cacat terhadap total item dalam lot (fraction defective)</td></tr>
+<tr><td>AQL</td><td>Acceptable Quality Level</td><td>Tingkat kualitas terburuk yang masih dianggap memuaskan sebagai rata-rata proses</td></tr>
+<tr><td>LTPD</td><td>Lot Tolerance Percent Defective</td><td>Tingkat cacat maksimum dalam lot individual yang masih dapat ditoleransi</td></tr>
+<tr><td>&alpha;</td><td>Risiko produsen</td><td>Probabilitas menolak lot yang kualitasnya sebenarnya baik (kesalahan tipe I)</td></tr>
+<tr><td>&beta;</td><td>Risiko konsumen</td><td>Probabilitas menerima lot yang kualitasnya sebenarnya buruk (kesalahan tipe II)</td></tr>
+<tr><td>r</td><td>Bilangan penolakan (rejection number)</td><td>Jumlah minimum cacat dalam sampel yang menyebabkan lot langsung ditolak (digunakan pada double/multiple sampling)</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Jenis-jenis Sampling Plan</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px">
+<div class="info-box"><strong>Single Sampling Plan</strong><br>Keputusan dibuat berdasarkan satu kali pengambilan sampel. Paling sederhana dan mudah diimplementasikan.</div>
+<div class="info-box"><strong>Double Sampling Plan</strong><br>Mengizinkan pengambilan sampel kedua jika sampel pertama tidak konklusif. Lebih ekonomis.</div>
+<div class="info-box"><strong>Multiple Sampling Plan</strong><br>Memerlukan beberapa tahap pengambilan sampel sebelum keputusan akhir. ASN paling kecil.</div>
+</div>
+</div>
+</div>
+
+
+<!-- ===================== SINGLE SAMPLING ===================== -->
+<div id="single" class="section">
+<h2>Single Sampling Plan</h2>
+<div class="card">
+<h3>Definisi dan Prosedur</h3>
+<p>Dalam Single Sampling Plan, diambil <strong>satu sampel</strong> berukuran <em>n</em> dari lot berukuran <em>N</em>. Jika jumlah cacat <em>d</em> &le; <em>c</em>, maka lot <strong>diterima</strong>. Jika <em>d</em> &gt; <em>c</em>, lot <strong>ditolak</strong>.</p>
+<div class="formula-box">
+<h3>Rumus Probabilitas Penerimaan</h3>
+<p><strong>Distribusi Binomial:</strong></p>
+<p>$$P(accept) = \sum_{d=0}^{c} \binom{n}{d} p^d (1-p)^{n-d}$$</p>
+<p style="margin-top:12px"><strong>Distribusi Hypergeometric (lot terbatas):</strong></p>
+<p>$$P(accept) = \sum_{d=0}^{c} \frac{\binom{D}{d}\binom{N-D}{n-d}}{\binom{N}{n}}$$</p>
+<p style="margin-top:12px"><strong>Aproksimasi Poisson (n besar, p kecil):</strong></p>
+<p>$$P(accept) = \sum_{d=0}^{c} \frac{e^{-np}(np)^d}{d!}$$</p>
+</div>
+</div>
+<div class="card">
+<h3>Diagram Alir Single Sampling Plan</h3>
+<svg class="fc" viewBox="0 0 480 420" width="480" height="420">
+<defs><marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#64748b"/></marker></defs>
+<ellipse class="st" cx="240" cy="30" rx="95" ry="22"/><text x="240" y="35" text-anchor="middle">Mulai: Lot masuk (N item)</text>
+<line class="al" x1="240" y1="52" x2="240" y2="78"/>
+<rect class="sp" x="140" y="80" width="200" height="36" rx="3"/><text x="240" y="103" text-anchor="middle">Ambil sampel acak (n item)</text>
+<line class="al" x1="240" y1="116" x2="240" y2="145"/>
+<rect class="sp" x="120" y="147" width="240" height="36" rx="3"/><text x="240" y="170" text-anchor="middle">Inspeksi sampel, hitung cacat (d)</text>
+<line class="al" x1="240" y1="183" x2="240" y2="215"/>
+<polygon class="sd" points="240,218 360,268 240,318 120,268"/><text x="240" y="265" text-anchor="middle" font-weight="600">d &le; c ?</text>
+<line class="al" x1="120" y1="268" x2="60" y2="268"/><line class="al" x1="60" y1="268" x2="60" y2="365"/>
+<text class="lt" x="85" y="258">Ya</text>
+<line class="al" x1="360" y1="268" x2="420" y2="268"/><line class="al" x1="420" y1="268" x2="420" y2="365"/>
+<text class="lt" x="370" y="258">Tidak</text>
+<ellipse class="sa" cx="60" cy="388" rx="55" ry="20"/><text x="60" y="393" text-anchor="middle" font-weight="600" fill="#15803d">Lot Diterima</text>
+<ellipse class="sr" cx="420" cy="388" rx="55" ry="20"/><text x="420" y="393" text-anchor="middle" font-weight="600" fill="#b91c1c">Lot Ditolak</text>
+</svg>
+</div>
+<div class="card">
+<h3>Simulasi</h3>
+<div class="controls">
+<div><label>N:</label><input type="number" id="ss-N" value="1000" min="100" max="10000"></div>
+<div><label>n:</label><input type="number" id="ss-n" value="50" min="5" max="500"></div>
+<div><label>c:</label><input type="number" id="ss-c" value="3" min="0" max="20"></div>
+<div><label>% Cacat:</label><input type="range" id="ss-p" value="5" min="0" max="30" oninput="document.getElementById('ss-pv').textContent=this.value+'%'"><span class="val" id="ss-pv">5%</span></div>
+<div><button class="btn btn-primary" onclick="runSingle()">Jalankan Simulasi</button></div>
+</div>
+<div id="ss-result"></div>
+<div id="ss-anim" class="animation-container" style="height:180px"></div>
+</div>
+</div>
+
+
+<!-- ===================== DOUBLE SAMPLING ===================== -->
+<div id="double" class="section">
+<h2>Double Sampling Plan</h2>
+<div class="card">
+<h3>Definisi dan Prosedur</h3>
+<p>Double Sampling Plan memberikan kesempatan kedua sebelum memutuskan. Parameter: n1, c1, r1 (tahap 1) dan n2, c2 (tahap 2).</p>
+<div class="formula-box">
+<h3>Probabilitas Penerimaan</h3>
+<p>$$P(accept) = P(d_1 \leq c_1) + \sum_{d_1=c_1+1}^{r_1-1} P(D_1=d_1) \cdot P(d_1+d_2 \leq c_2)$$</p>
+</div>
+<div class="info-box">
+<strong>Aturan Keputusan:</strong><br>
+- Tahap 1: Jika d1 &le; c1 maka TERIMA<br>
+- Tahap 1: Jika d1 &ge; r1 maka TOLAK<br>
+- Tahap 1: Jika c1 &lt; d1 &lt; r1 maka ambil sampel kedua<br>
+- Tahap 2: Jika d1 + d2 &le; c2 maka TERIMA<br>
+- Tahap 2: Jika d1 + d2 &gt; c2 maka TOLAK
+</div>
+<h3>Tiga Kemungkinan Keputusan pada Tahap 1</h3>
+<table>
+<tr><th>Kondisi</th><th>Keputusan</th><th>Penjelasan</th></tr>
+<tr><td>d1 &le; c1</td><td style="color:#16a34a;font-weight:600">Langsung TERIMA</td><td>Jumlah cacat sangat sedikit, lot jelas berkualitas baik</td></tr>
+<tr><td>d1 &ge; r1</td><td style="color:#dc2626;font-weight:600">Langsung TOLAK</td><td>Jumlah cacat terlalu banyak, lot jelas berkualitas buruk</td></tr>
+<tr><td>c1 &lt; d1 &lt; r1</td><td style="color:#d97706;font-weight:600">Ambil sampel kedua</td><td>Hasil belum konklusif, perlu informasi tambahan dari sampel kedua</td></tr>
+</table>
+<div class="info-box">
+<strong>Contoh:</strong> Jika c1=1 dan r1=4, maka:<br>
+- d1 = 0 atau 1: langsung terima<br>
+- d1 = 4 atau lebih: langsung tolak<br>
+- d1 = 2 atau 3: belum pasti, lanjut ke sampel kedua
+</div>
+</div>
+<div class="card">
+<h3>Diagram Alir Double Sampling Plan</h3>
+<svg class="fc" viewBox="0 0 580 600" width="580" height="600">
+<defs><marker id="ah2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#64748b"/></marker></defs>
+<ellipse class="st" cx="290" cy="28" rx="85" ry="20"/><text x="290" y="33" text-anchor="middle">Mulai: Lot (N item)</text>
+<line class="al" x1="290" y1="48" x2="290" y2="72" marker-end="url(#ah2)"/>
+<polygon class="sio" points="175,75 405,75 385,110 195,110"/><text x="290" y="97" text-anchor="middle">Ambil sampel n1, inspeksi, hitung d1</text>
+<line class="al" x1="290" y1="110" x2="290" y2="140" marker-end="url(#ah2)"/>
+<polygon class="sd" points="290,143 400,190 290,237 180,190"/><text x="290" y="188" text-anchor="middle" font-weight="600">d1 &le; c1 ?</text>
+<line class="al" x1="180" y1="190" x2="70" y2="190" marker-end="url(#ah2)"/><text class="lt" x="120" y="182">Ya</text>
+<ellipse class="sa" cx="70" cy="190" rx="50" ry="17"/><text x="70" y="195" text-anchor="middle" font-weight="600" fill="#15803d">TERIMA</text>
+<line class="al" x1="290" y1="237" x2="290" y2="267" marker-end="url(#ah2)"/><text class="lt" x="298" y="255">Tidak</text>
+<polygon class="sd" points="290,270 400,317 290,364 180,317"/><text x="290" y="315" text-anchor="middle" font-weight="600">d1 &ge; r1 ?</text>
+<line class="al" x1="400" y1="317" x2="510" y2="317" marker-end="url(#ah2)"/><text class="lt" x="435" y="309">Ya</text>
+<ellipse class="sr" cx="510" cy="317" rx="50" ry="17"/><text x="510" y="322" text-anchor="middle" font-weight="600" fill="#b91c1c">TOLAK</text>
+<line class="al" x1="290" y1="364" x2="290" y2="394" marker-end="url(#ah2)"/><text class="lt" x="298" y="382">Tidak</text>
+<polygon class="sio" points="175,397 405,397 385,432 195,432"/><text x="290" y="419" text-anchor="middle">Ambil sampel n2, inspeksi, hitung d2</text>
+<line class="al" x1="290" y1="432" x2="290" y2="462" marker-end="url(#ah2)"/>
+<polygon class="sd" points="290,465 410,512 290,559 170,512"/><text x="290" y="510" text-anchor="middle" font-weight="600">d1+d2 &le; c2 ?</text>
+<line class="al" x1="170" y1="512" x2="70" y2="512" marker-end="url(#ah2)"/><text class="lt" x="115" y="504">Ya</text>
+<ellipse class="sa" cx="70" cy="512" rx="50" ry="17"/><text x="70" y="517" text-anchor="middle" font-weight="600" fill="#15803d">TERIMA</text>
+<line class="al" x1="410" y1="512" x2="510" y2="512" marker-end="url(#ah2)"/><text class="lt" x="440" y="504">Tidak</text>
+<ellipse class="sr" cx="510" cy="512" rx="50" ry="17"/><text x="510" y="517" text-anchor="middle" font-weight="600" fill="#b91c1c">TOLAK</text>
+</svg>
+</div>
+<div class="card">
+<h3>Simulasi Double Sampling</h3>
+<div class="controls">
+<div><label>n1:</label><input type="number" id="ds-n1" value="50" min="5" max="200"></div>
+<div><label>c1:</label><input type="number" id="ds-c1" value="1" min="0" max="10"></div>
+<div><label>r1:</label><input type="number" id="ds-r1" value="4" min="1" max="15"></div>
+<div><label>n2:</label><input type="number" id="ds-n2" value="100" min="10" max="300"></div>
+<div><label>c2:</label><input type="number" id="ds-c2" value="5" min="1" max="20"></div>
+<div><label>% Cacat:</label><input type="range" id="ds-p" value="4" min="0" max="20" oninput="document.getElementById('ds-pv').textContent=this.value+'%'"><span class="val" id="ds-pv">4%</span></div>
+<div><button class="btn btn-primary" onclick="runDouble()">Jalankan Simulasi</button></div>
+</div>
+<div id="ds-result"></div>
+<div id="ds-visual"></div>
+</div>
+</div>
+
+
+<!-- ===================== MULTIPLE SAMPLING ===================== -->
+<div id="multiple" class="section">
+<h2>Multiple Sampling Plan</h2>
+<div class="card">
+<h3>Definisi dan Prosedur</h3>
+<p>Multiple Sampling Plan adalah generalisasi dari double sampling, dengan hingga <em>k</em> tahap pengambilan sampel. Setiap tahap memiliki parameter ni, ci, dan ri.</p>
+<div class="formula-box">
+<h3>Probabilitas Penerimaan</h3>
+<p>$$P_a = \sum_{j=1}^{k} P(\text{accept pada tahap } j)$$</p>
+</div>
+<div class="info-box">
+<strong>Keuntungan:</strong> ASN lebih kecil, keputusan lebih cepat untuk lot sangat baik/buruk.<br>
+<strong>Kerugian:</strong> Administrasi lebih kompleks, pelatihan inspektor lebih sulit.
+</div>
+</div>
+<div class="card">
+<h3>Contoh Multiple Sampling Plan (7 Tahap)</h3>
+<table>
+<tr><th>Tahap</th><th>ni</th><th>Kumulatif</th><th>ci (Accept)</th><th>ri (Reject)</th></tr>
+<tr><td>1</td><td>20</td><td>20</td><td>0</td><td>3</td></tr>
+<tr><td>2</td><td>20</td><td>40</td><td>1</td><td>4</td></tr>
+<tr><td>3</td><td>20</td><td>60</td><td>2</td><td>5</td></tr>
+<tr><td>4</td><td>20</td><td>80</td><td>3</td><td>6</td></tr>
+<tr><td>5</td><td>20</td><td>100</td><td>5</td><td>7</td></tr>
+<tr><td>6</td><td>20</td><td>120</td><td>7</td><td>8</td></tr>
+<tr><td>7</td><td>20</td><td>140</td><td>9</td><td>10</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Diagram Alir Multiple Sampling Plan</h3>
+<svg class="fc" viewBox="0 0 580 560" width="580" height="560">
+<defs><marker id="ah3" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#64748b"/></marker></defs>
+<ellipse class="st" cx="290" cy="28" rx="85" ry="20"/><text x="290" y="33" text-anchor="middle">Mulai: Lot (N item)</text>
+<line class="al" x1="290" y1="48" x2="290" y2="72" marker-end="url(#ah3)"/>
+<polygon class="sio" points="175,75 405,75 385,110 195,110"/><text x="290" y="97" text-anchor="middle">Tahap i: Ambil ni, hitung D kumulatif</text>
+<line class="al" x1="290" y1="110" x2="290" y2="140" marker-end="url(#ah3)"/>
+<polygon class="sd" points="290,143 400,193 290,243 180,193"/><text x="290" y="191" text-anchor="middle" font-weight="600">D &le; ci ?</text>
+<line class="al" x1="180" y1="193" x2="70" y2="193" marker-end="url(#ah3)"/><text class="lt" x="120" y="185">Ya</text>
+<ellipse class="sa" cx="70" cy="193" rx="50" ry="17"/><text x="70" y="198" text-anchor="middle" font-weight="600" fill="#15803d">TERIMA</text>
+<line class="al" x1="290" y1="243" x2="290" y2="273" marker-end="url(#ah3)"/><text class="lt" x="298" y="261">Tidak</text>
+<polygon class="sd" points="290,276 400,326 290,376 180,326"/><text x="290" y="324" text-anchor="middle" font-weight="600">D &ge; ri ?</text>
+<line class="al" x1="400" y1="326" x2="510" y2="326" marker-end="url(#ah3)"/><text class="lt" x="435" y="318">Ya</text>
+<ellipse class="sr" cx="510" cy="326" rx="50" ry="17"/><text x="510" y="331" text-anchor="middle" font-weight="600" fill="#b91c1c">TOLAK</text>
+<line class="al" x1="290" y1="376" x2="290" y2="406" marker-end="url(#ah3)"/><text class="lt" x="298" y="394">Tidak</text>
+<polygon class="sd" points="290,409 380,444 290,479 200,444"/><text x="290" y="442" text-anchor="middle" font-weight="600">i &lt; k ?</text>
+<line class="al" x1="200" y1="444" x2="100" y2="444" marker-end="url(#ah3)"/><text class="lt" x="145" y="436">Ya</text>
+<rect class="sp" x="50" y="430" width="50" height="28" rx="3"/><text x="75" y="448" text-anchor="middle" font-size="10">i=i+1</text>
+<line stroke="#64748b" stroke-width="1.4" x1="75" y1="430" x2="75" y2="93"/>
+<line class="al" x1="75" y1="93" x2="173" y2="93" marker-end="url(#ah3)"/>
+<line class="al" x1="380" y1="444" x2="510" y2="444" marker-end="url(#ah3)"/><text class="lt" x="420" y="436">Tidak (i=k)</text>
+<ellipse class="sr" cx="510" cy="444" rx="50" ry="17"/><text x="510" y="449" text-anchor="middle" font-weight="600" fill="#b91c1c">TOLAK</text>
+</svg>
+</div>
+<div class="card">
+<h3>Simulasi Multiple Sampling</h3>
+<div class="controls">
+<div><label>% Cacat:</label><input type="range" id="ms-p" value="5" min="0" max="25" oninput="document.getElementById('ms-pv').textContent=this.value+'%'"><span class="val" id="ms-pv">5%</span></div>
+<div><button class="btn btn-primary" onclick="runMultiple()">Simulasi 7-Tahap</button></div>
+</div>
+<div id="ms-result"></div>
+</div>
+</div>
+
+
+<!-- ===================== KURVA OC ===================== -->
+<div id="oc" class="section">
+<h2>Kurva OC (Operating Characteristic)</h2>
+<div class="card">
+<h3>Definisi</h3>
+<p>Kurva OC menggambarkan hubungan antara proporsi cacat dalam lot (p) dengan probabilitas penerimaan lot P(accept). Kurva ini adalah alat utama untuk mengevaluasi kinerja suatu sampling plan.</p>
+<div class="formula-box">
+<p><strong>Binomial (exact):</strong> $$P_a(p) = \sum_{x=0}^{c} \binom{n}{x} p^x (1-p)^{n-x}$$</p>
+<p><strong>Poisson (aproksimasi):</strong> $$P_a(p) \approx \sum_{x=0}^{c} \frac{e^{-np}(np)^x}{x!}$$</p>
+</div>
+</div>
+<div class="card">
+<h3> Simulasi Kurva OC </h3>
+<div class="controls">
+<div><label>n:</label><input type="range" id="oc-n" value="50" min="5" max="200" oninput="document.getElementById('oc-nv').textContent=this.value"><span class="val" id="oc-nv">50</span></div>
+<div><label>c:</label><input type="range" id="oc-c" value="3" min="0" max="15" oninput="document.getElementById('oc-cv').textContent=this.value"><span class="val" id="oc-cv">3</span></div>
+<div><button class="btn btn-primary" onclick="drawOC()">Gambar Kurva OC</button></div>
+<div><button class="btn btn-success" onclick="compareOC()">Bandingkan Plans</button></div>
+</div>
+<div class="chart-container"><canvas id="ocChart"></canvas></div>
+<div id="oc-calc" class="calc-steps" style="display:none"></div>
+<div id="oc-interp" class="interp-box" style="display:none"></div>
+</div>
+</div>
+
+<!-- ===================== AOQ & AOQL ===================== -->
+<div id="aoq" class="section">
+<h2>AOQ dan AOQL</h2>
+<div class="card">
+<h3>Definisi</h3>
+<p><strong>AOQ (Average Outgoing Quality)</strong> adalah rata-rata kualitas outgoing setelah inspeksi, dengan asumsi lot yang ditolak diinspeksi 100% dan item cacat diganti.</p>
+<p><strong>AOQL (Average Outgoing Quality Limit)</strong> adalah nilai maksimum kurva AOQ, yaitu kualitas terburuk yang mungkin lolos.</p>
+<div class="formula-box">
+<p>$$AOQ = \frac{P_a \cdot p \cdot (N-n)}{N}$$</p>
+<p>$$AOQL = \max_{0 \leq p \leq 1} [AOQ(p)]$$</p>
+</div>
+</div>
+<div class="card">
+<h3> Simulasi Grafik AOQ </h3>
+<div class="controls">
+<div><label>n:</label><input type="range" id="aoq-n" value="50" min="10" max="200" oninput="document.getElementById('aoq-nv').textContent=this.value"><span class="val" id="aoq-nv">50</span></div>
+<div><label>c:</label><input type="range" id="aoq-c" value="3" min="0" max="15" oninput="document.getElementById('aoq-cv').textContent=this.value"><span class="val" id="aoq-cv">3</span></div>
+<div><label>N:</label><input type="number" id="aoq-N" value="1000" min="100" max="10000"></div>
+<div><button class="btn btn-primary" onclick="drawAOQ()">Gambar AOQ</button></div>
+</div>
+<div class="chart-container"><canvas id="aoqChart"></canvas></div>
+<div id="aoq-calc" class="calc-steps" style="display:none"></div>
+<div id="aoq-interp" class="interp-box" style="display:none"></div>
+</div>
+</div>
+
+<!-- ===================== ATI & ASN ===================== -->
+<div id="ati" class="section">
+<h2>ATI dan ASN</h2>
+<div class="card">
+<h3>Definisi</h3>
+<p><strong>ATI (Average Total Inspection)</strong> adalah rata-rata jumlah total item yang diinspeksi per lot, termasuk inspeksi 100% untuk lot yang ditolak.</p>
+<p><strong>ASN (Average Sample Number)</strong> adalah rata-rata jumlah sampel yang perlu diperiksa sebelum keputusan dibuat.</p>
+<div class="formula-box">
+<p><strong>ATI:</strong> $$ATI = n + (1 - P_a)(N - n)$$</p>
+<p><strong>ASN Single:</strong> $$ASN = n \quad \text{(konstan)}$$</p>
+<p><strong>ASN Double:</strong> $$ASN = n_1 + n_2[1 - P(d_1 \leq c_1) - P(d_1 \geq r_1)]$$</p>
+</div>
+</div>
+<div class="card">
+<h3>Kurva ATI</h3>
+<div class="controls">
+<div><label>n:</label><input type="range" id="ati-n" value="50" min="10" max="200" oninput="document.getElementById('ati-nv').textContent=this.value"><span class="val" id="ati-nv">50</span></div>
+<div><label>c:</label><input type="range" id="ati-c" value="3" min="0" max="15" oninput="document.getElementById('ati-cv').textContent=this.value"><span class="val" id="ati-cv">3</span></div>
+<div><label>N:</label><input type="number" id="ati-N" value="1000" min="100" max="10000"></div>
+<div><button class="btn btn-primary" onclick="drawATICurve()">Gambar Kurva ATI</button></div>
+</div>
+<div class="chart-container"><canvas id="atiChart"></canvas></div>
+<div id="ati-calc" class="calc-steps" style="display:none"></div>
+<div id="ati-interp" class="interp-box" style="display:none"></div>
+</div>
+<div class="card">
+<h3>Kurva ASN</h3>
+<div class="controls">
+<div><label>n (single):</label><input type="number" id="asn-n" value="50" min="5" max="200"></div>
+<div><label>c:</label><input type="number" id="asn-c" value="3" min="0" max="15"></div>
+<div><label>n1 (double):</label><input type="number" id="asn-n1" value="25" min="5" max="200"></div>
+<div><label>n2 (double):</label><input type="number" id="asn-n2" value="50" min="5" max="200"></div>
+<div><label>c1:</label><input type="number" id="asn-c1" value="1" min="0" max="10"></div>
+<div><label>r1:</label><input type="number" id="asn-r1" value="4" min="1" max="15"></div>
+<div><button class="btn btn-primary" onclick="drawASNCurve()">Gambar Kurva ASN</button></div>
+</div>
+<div class="chart-container"><canvas id="asnChart"></canvas></div>
+<div id="asn-calc" class="calc-steps" style="display:none"></div>
+<div id="asn-interp" class="interp-box" style="display:none"></div>
+</div>
+</div>
+
+
+<!-- ===================== SIMULATOR ===================== -->
+<div id="simulator" class="section">
+<h2>Simulator Sampling</h2>
+<div class="card">
+<h3>Monte Carlo Simulation</h3>
+<p>Jalankan ribuan simulasi untuk memverifikasi teori sampling plan secara empiris.</p>
+<div class="controls">
+<div><label>Plan:</label>
+<select id="sim-plan" onchange="updateSimControls()">
+<option value="single">Single Sampling</option>
+<option value="double">Double Sampling</option>
+</select>
+</div>
+<div><label>Jumlah Run:</label><input type="number" id="sim-runs" value="1000" min="100" max="10000"></div>
+<div><label>N:</label><input type="number" id="sim-N" value="1000" min="100"></div>
+<div id="sim-single-fields">
+<span><label>n:</label><input type="number" id="sim-n" value="50" min="5"></span>
+<span><label>c:</label><input type="number" id="sim-c" value="3" min="0"></span>
+</div>
+<div id="sim-double-fields" style="display:none">
+<span><label>n1:</label><input type="number" id="sim-n1" value="50" min="5"></span>
+<span><label>c1:</label><input type="number" id="sim-c1" value="1" min="0"></span>
+<span><label>r1:</label><input type="number" id="sim-r1" value="4" min="1"></span>
+<span><label>n2:</label><input type="number" id="sim-n2" value="100" min="5"></span>
+<span><label>c2:</label><input type="number" id="sim-c2" value="5" min="1"></span>
+</div>
+<div><label>% Cacat:</label><input type="range" id="sim-p" value="5" min="0" max="30" oninput="document.getElementById('sim-pv').textContent=this.value+'%'"><span class="val" id="sim-pv">5%</span></div>
+<div><button class="btn btn-primary" onclick="runMC()">Jalankan Simulasi</button></div>
+</div>
+<div id="mc-result"></div>
+<div class="chart-container"><canvas id="mcChart"></canvas></div>
+</div>
+<div class="card">
+<h3>Perbandingan Kurva OC: Teoritis vs Empiris</h3>
+<p>Validasi kurva OC teoritis dengan hasil simulasi Monte Carlo (1000 run per titik p).</p>
+<div class="controls">
+<div><label>n:</label><input type="number" id="comp-n" value="50" min="5" max="200"></div>
+<div><label>c:</label><input type="number" id="comp-c" value="3" min="0" max="15"></div>
+<div><label>Runs per titik:</label><input type="number" id="comp-runs" value="1000" min="100" max="5000"></div>
+<div><button class="btn btn-primary" onclick="runComparison()">Bandingkan Teoritis vs Empiris</button></div>
+</div>
+<div class="chart-container"><canvas id="compChart"></canvas></div>
+</div>
+</div>
+
+</div><!-- end container -->
+
+
+<script>
+// ===== NAVIGATION =====
+function showSection(id){
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+}
+
+// ===== MATH =====
+function comb(n,k){if(k>n||k<0)return 0;if(k===0||k===n)return 1;k=Math.min(k,n-k);let r=1;for(let i=0;i<k;i++){r*=(n-i);r/=(i+1);}return r;}
+function binPMF(x,n,p){if(p===0)return x===0?1:0;if(p>=1)return x===n?1:0;return comb(n,x)*Math.pow(p,x)*Math.pow(1-p,n-x);}
+function binCDF(c,n,p){let s=0;for(let x=0;x<=c;x++)s+=binPMF(x,n,p);return Math.min(s,1);}
+function Pa(p,n,c){return binCDF(c,n,p);}
+
+// ===== SINGLE SAMPLING =====
+function runSingle(){
+    const N=+document.getElementById('ss-N').value,n=+document.getElementById('ss-n').value,c=+document.getElementById('ss-c').value,p=+document.getElementById('ss-p').value/100;
+    const sample=[];for(let i=0;i<n;i++)sample.push(Math.random()<p?1:0);
+    const d=sample.reduce((a,b)=>a+b,0),accepted=d<=c,pa=Pa(p,n,c);
+    let h=`<div class="result-box ${accepted?'result-accept':'result-reject'}">Hasil: ${accepted?'LOT DITERIMA':'LOT DITOLAK'}<br><span style="font-size:.82em;font-weight:normal">d=${d}, c=${c}, P(accept) teoritis=${(pa*100).toFixed(2)}%</span></div>`;
+    // Calculation explanation
+    h+=`<div class="calc-steps"><strong>Perhitungan P(accept):</strong><br><br>`;
+    h+=`<strong>Rumus:</strong> P(accept) = &sum; C(n,x) . p<sup>x</sup> . (1-p)<sup>(n-x)</sup> untuk x = 0 sampai c<br><br>`;
+    h+=`<strong>Parameter:</strong> n = ${n}, c = ${c}, p = ${(p*100).toFixed(1)}% = ${p.toFixed(4)}<br><br>`;
+    h+=`<strong>Langkah:</strong><br>`;
+    let cumProb=0;
+    for(let x=0;x<=Math.min(c,5);x++){
+        const px=binPMF(x,n,p);cumProb+=px;
+        h+=`&nbsp;&nbsp;P(X=${x}) = C(${n},${x}) . ${p.toFixed(4)}<sup>${x}</sup> . ${(1-p).toFixed(4)}<sup>${n-x}</sup> = ${px.toFixed(6)}<br>`;
+    }
+    if(c>5)h+=`&nbsp;&nbsp;... (hingga x=${c})<br>`;
+    h+=`<br><strong>P(accept) = P(X &le; ${c}) = ${pa.toFixed(6)} = ${(pa*100).toFixed(2)}%</strong>`;
+    h+=`</div>`;
+    // Interpretation
+    h+=`<div class="interp-box"><strong>Interpretasi:</strong><br>`;
+    h+=`- Dengan proporsi cacat p = ${(p*100).toFixed(1)}%, sampling plan ini (n=${n}, c=${c}) memberikan probabilitas penerimaan sebesar <strong>${(pa*100).toFixed(2)}%</strong>.<br>`;
+    h+=`- Dalam simulasi ini ditemukan d = ${d} cacat dari ${n} sampel. ${accepted?`Karena d=${d} &le; c=${c}, lot <strong>diterima</strong>.`:`Karena d=${d} &gt; c=${c}, lot <strong>ditolak</strong>.`}<br>`;
+    if(pa>0.9)h+=`- P(accept) sangat tinggi (${(pa*100).toFixed(1)}%), menunjukkan plan ini sangat permisif pada level cacat ${(p*100).toFixed(1)}%. Risiko produsen rendah.`;
+    else if(pa>0.5)h+=`- P(accept) moderat (${(pa*100).toFixed(1)}%), lot pada level cacat ini memiliki peluang lebih besar diterima daripada ditolak.`;
+    else if(pa>0.1)h+=`- P(accept) rendah (${(pa*100).toFixed(1)}%), lot pada level cacat ini kemungkinan besar ditolak. Plan cukup protektif bagi konsumen.`;
+    else h+=`- P(accept) sangat rendah (${(pa*100).toFixed(1)}%), lot pada level cacat ini hampir pasti ditolak. Konsumen terlindungi dengan baik.`;
+    h+=`</div>`;
+    document.getElementById('ss-result').innerHTML=h;
+    const ct=document.getElementById('ss-anim');ct.innerHTML='';
+    const show=Math.min(n,80),cols=Math.ceil(Math.sqrt(show*2));
+    for(let i=0;i<show;i++){const div=document.createElement('div');div.className=`sample-item ${sample[i]?'item-defect':'item-good'}`;div.style.left=(15+(i%cols)*22)+'px';div.style.top=(15+Math.floor(i/cols)*22)+'px';div.style.opacity='0';div.style.transform='scale(0)';ct.appendChild(div);setTimeout(()=>{div.style.opacity='1';div.style.transform='scale(1)';},i*25);}
+}
+
+// ===== DOUBLE SAMPLING =====
+function runDouble(){
+    const n1=+document.getElementById('ds-n1').value,c1=+document.getElementById('ds-c1').value,r1=+document.getElementById('ds-r1').value;
+    const n2=+document.getElementById('ds-n2').value,c2=+document.getElementById('ds-c2').value,p=+document.getElementById('ds-p').value/100;
+    const s1=[];for(let i=0;i<n1;i++)s1.push(Math.random()<p?1:0);
+    const d1=s1.reduce((a,b)=>a+b,0);
+    let html='<div style="padding:10px">',s2=[],d2=0,decision='',stage=1;
+    html+=`<strong>Tahap 1:</strong> n1=${n1}, d1=${d1}<br>`;
+    if(d1<=c1){decision='accept';html+=`<div class="result-box result-accept">TERIMA pada Tahap 1 (d1=${d1} &le; c1=${c1})</div>`;}
+    else if(d1>=r1){decision='reject';html+=`<div class="result-box result-reject">TOLAK pada Tahap 1 (d1=${d1} &ge; r1=${r1})</div>`;}
+    else{stage=2;html+=`<em>c1=${c1} &lt; d1=${d1} &lt; r1=${r1}, lanjut tahap 2</em><br><br>`;
+        for(let i=0;i<n2;i++)s2.push(Math.random()<p?1:0);d2=s2.reduce((a,b)=>a+b,0);
+        html+=`<strong>Tahap 2:</strong> n2=${n2}, d2=${d2}, total=${d1+d2}<br>`;
+        if(d1+d2<=c2){decision='accept';html+=`<div class="result-box result-accept">TERIMA pada Tahap 2 (d1+d2=${d1+d2} &le; c2=${c2})</div>`;}
+        else{decision='reject';html+=`<div class="result-box result-reject">TOLAK pada Tahap 2 (d1+d2=${d1+d2} &gt; c2=${c2})</div>`;}
+    }
+    html+='</div>';document.getElementById('ds-result').innerHTML=html;
+    // Visual
+    let v='<div class="ds-visual"><div class="ds-stage"><h4>Sampel Tahap 1 (n1='+n1+')</h4><div class="items-grid">';
+    const sh1=Math.min(n1,60);for(let i=0;i<sh1;i++)v+=`<div class="dot ${s1[i]?'dot-bad':'dot-good'}"></div>`;
+    if(n1>60)v+=`<span style="font-size:.72em;color:#64748b">+${n1-60}</span>`;
+    v+=`</div><div class="stage-info">Cacat: <strong style="color:#dc2626">${d1}</strong>/${n1} | c1=${c1}, r1=${r1}</div>`;
+    if(stage===1)v+=`<div class="stage-info" style="font-weight:600;color:${decision==='accept'?'#16a34a':'#dc2626'}">Keputusan: ${decision==='accept'?'TERIMA':'TOLAK'}</div>`;
+    else v+=`<div class="stage-info" style="color:#d97706;font-weight:500">Belum konklusif</div>`;
+    v+='</div>';
+    if(stage===2){v+='<div class="ds-stage"><h4>Sampel Tahap 2 (n2='+n2+')</h4><div class="items-grid">';
+        const sh2=Math.min(n2,60);for(let i=0;i<sh2;i++)v+=`<div class="dot ${s2[i]?'dot-bad':'dot-good'}"></div>`;
+        if(n2>60)v+=`<span style="font-size:.72em;color:#64748b">+${n2-60}</span>`;
+        v+=`</div><div class="stage-info">Cacat tahap 2: <strong style="color:#dc2626">${d2}</strong>/${n2} | Total: <strong>${d1+d2}</strong>, c2=${c2}</div>`;
+        v+=`<div class="stage-info" style="font-weight:600;color:${decision==='accept'?'#16a34a':'#dc2626'}">Keputusan: ${decision==='accept'?'TERIMA':'TOLAK'}</div></div>`;
+    }
+    v+='</div>';document.getElementById('ds-visual').innerHTML=v;
+    // Calculation explanation for Double Sampling
+    const pa1=Pa(p,n1,c1);  // P(accept at stage 1)
+    let pStage2=0;
+    for(let x=c1+1;x<r1;x++)pStage2+=binPMF(x,n1,p);
+    let pAcceptTotal=pa1;
+    for(let x=c1+1;x<r1;x++){const pX=binPMF(x,n1,p);const pA2=binCDF(c2-x,n2,p);pAcceptTotal+=pX*pA2;}
+    let calc='<div class="calc-steps"><strong>Perhitungan P(accept) Double Sampling:</strong><br><br>';
+    calc+=`<strong>Rumus:</strong> P(accept) = P(d1 &le; c1) + &sum; P(D1=x) . P(x+d2 &le; c2) untuk x = c1+1 sampai r1-1<br><br>`;
+    calc+=`<strong>Parameter:</strong> n1=${n1}, c1=${c1}, r1=${r1}, n2=${n2}, c2=${c2}, p=${(p*100).toFixed(1)}%<br><br>`;
+    calc+=`<strong>Langkah 1:</strong> P(terima tahap 1) = P(d1 &le; ${c1}) = ${pa1.toFixed(6)} = ${(pa1*100).toFixed(2)}%<br>`;
+    calc+=`<strong>Langkah 2:</strong> P(tolak tahap 1) = P(d1 &ge; ${r1}) = ${(1-binCDF(r1-1,n1,p)).toFixed(6)} = ${((1-binCDF(r1-1,n1,p))*100).toFixed(2)}%<br>`;
+    calc+=`<strong>Langkah 3:</strong> P(sampel kedua diperlukan) = P(${c1} &lt; d1 &lt; ${r1}) = ${pStage2.toFixed(6)} = ${(pStage2*100).toFixed(2)}%<br>`;
+    calc+=`<strong>Langkah 4:</strong> Kontribusi tahap 2:<br>`;
+    for(let x=c1+1;x<r1;x++){
+        const pX=binPMF(x,n1,p),pA2=binCDF(c2-x,n2,p);
+        calc+=`&nbsp;&nbsp;d1=${x}: P(D1=${x})=${pX.toFixed(5)} x P(d2 &le; ${c2-x})=${pA2.toFixed(5)} = ${(pX*pA2).toFixed(6)}<br>`;
+    }
+    calc+=`<br><strong>P(accept) total = ${pAcceptTotal.toFixed(6)} = ${(pAcceptTotal*100).toFixed(2)}%</strong></div>`;
+    // Interpretation
+    calc+=`<div class="interp-box"><strong>Interpretasi:</strong><br>`;
+    calc+=`- Dengan p=${(p*100).toFixed(1)}%, probabilitas lot diterima secara keseluruhan adalah <strong>${(pAcceptTotal*100).toFixed(2)}%</strong>.<br>`;
+    calc+=`- Probabilitas keputusan langsung di tahap 1: ${((pa1+1-binCDF(r1-1,n1,p))*100).toFixed(1)}% (terima: ${(pa1*100).toFixed(1)}%, tolak: ${((1-binCDF(r1-1,n1,p))*100).toFixed(1)}%).<br>`;
+    calc+=`- Probabilitas memerlukan sampel kedua: ${(pStage2*100).toFixed(1)}%.<br>`;
+    if(pAcceptTotal>0.9)calc+=`- Plan ini sangat permisif pada p=${(p*100).toFixed(1)}%, hampir semua lot akan diterima.`;
+    else if(pAcceptTotal>0.5)calc+=`- Pada level cacat ini, lebih banyak lot diterima daripada ditolak.`;
+    else calc+=`- Pada level cacat ini, sebagian besar lot akan ditolak. Plan protektif bagi konsumen.`;
+    calc+=`</div>`;
+    document.getElementById('ds-result').innerHTML+=calc;
+}
+
+// ===== MULTIPLE SAMPLING =====
+function runMultiple(){
+    const p=+document.getElementById('ms-p').value/100;
+    const st=[{n:20,c:0,r:3},{n:20,c:1,r:4},{n:20,c:2,r:5},{n:20,c:3,r:6},{n:20,c:5,r:7},{n:20,c:7,r:8},{n:20,c:9,r:10}];
+    let html='<table><tr><th>Tahap</th><th>ni</th><th>di</th><th>D kum</th><th>ci</th><th>ri</th><th>Keputusan</th></tr>';
+    let cumD=0,done=false;
+    for(let i=0;i<st.length;i++){let di=0;for(let j=0;j<st[i].n;j++)if(Math.random()<p)di++;cumD+=di;
+        let dec='<span style="color:#d97706">Lanjut</span>';
+        if(cumD<=st[i].c){dec='<span style="color:#16a34a;font-weight:600">TERIMA</span>';done=true;}
+        else if(cumD>=st[i].r){dec='<span style="color:#dc2626;font-weight:600">TOLAK</span>';done=true;}
+        html+=`<tr><td>${i+1}</td><td>${st[i].n}</td><td>${di}</td><td>${cumD}</td><td>${st[i].c}</td><td>${st[i].r}</td><td>${dec}</td></tr>`;
+        if(done)break;}
+    if(!done)html+='<tr><td colspan="7" style="color:#dc2626;font-weight:600">Tahap terakhir: TOLAK</td></tr>';
+    html+='</table>';document.getElementById('ms-result').innerHTML=html;
+}
+</script>
+
+
+<script>
+// ===== OC CURVE WITH CALCULATION STEPS =====
+let ocChart=null;
+function drawOC(){
+    const n=+document.getElementById('oc-n').value,c=+document.getElementById('oc-c').value;
+    const pVals=[],paVals=[];
+    for(let p=0;p<=0.30;p+=0.005){pVals.push((p*100).toFixed(1));paVals.push(Pa(p,n,c));}
+    let aql=0,ltpd=0;
+    for(let p=0;p<=0.30;p+=0.001){if(Pa(p,n,c)<=0.95&&aql===0)aql=p;if(Pa(p,n,c)<=0.10&&ltpd===0){ltpd=p;break;}}
+    const ctx=document.getElementById('ocChart').getContext('2d');
+    if(ocChart)ocChart.destroy();
+    // Build LTPD vertical line data
+    const ltpdLine=pVals.map(v=>{const pv=parseFloat(v);return(Math.abs(pv-ltpd*100)<0.3)?1:null;});
+    ocChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
+        {label:`OC (n=${n}, c=${c})`,data:paVals,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.06)',fill:true,tension:.4,pointRadius:0},
+        {label:`LTPD = ${(ltpd*100).toFixed(2)}%`,data:ltpdLine,borderColor:'#dc2626',borderWidth:2,pointRadius:0,fill:false,spanGaps:false,segment:{borderDash:[4,4]}},
+        {label:'Pa = 0.10',data:pVals.map(()=>0.10),borderColor:'#dc2626',borderDash:[4,4],pointRadius:0,fill:false,borderWidth:1.2}
+    ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva OC: n=${n}, c=${c}`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},
+        scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'P(Accept)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0,max:1}}}});
+    // Calculation steps
+    const p5=Pa(0.05,n,c),p10=Pa(0.10,n,c),p1=Pa(0.01,n,c);
+    let calc=`<strong>Langkah Perhitungan Kurva OC (n=${n}, c=${c}):</strong><br><br>`;
+    calc+=`1. <strong>Rumus yang digunakan:</strong> P_a(p) = &sum; C(n,x) . p^x . (1-p)^(n-x) untuk x = 0 sampai c<br>`;
+    calc+=`2. <strong>Contoh pada p = 5% (0.05):</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;np = ${n} x 0.05 = ${(n*0.05).toFixed(2)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P_a = &sum; C(${n},x) . (0.05)^x . (0.95)^(${n}-x) untuk x=0..${c}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P_a(0.05) = <strong>${(p5*100).toFixed(4)}%</strong><br>`;
+    calc+=`3. <strong>Contoh pada p = 10% (0.10):</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P_a(0.10) = <strong>${(p10*100).toFixed(4)}%</strong><br>`;
+    calc+=`4. <strong>AQL (P_a = 0.95):</strong> p &asymp; ${(aql*100).toFixed(3)}%<br>`;
+    calc+=`5. <strong>LTPD (P_a = 0.10):</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Dicari p sehingga Pa(p) = 0.10<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(${(ltpd*100).toFixed(3)}%) = ${Pa(ltpd,n,c).toFixed(4)} &asymp; 0.10<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;<strong>LTPD = ${(ltpd*100).toFixed(3)}%</strong><br>`;
+    calc+=`6. <strong>Rasio Diskriminasi:</strong> LTPD/AQL = ${(ltpd*100).toFixed(3)} / ${(aql*100).toFixed(3)} = ${(ltpd/aql).toFixed(2)}<br>`;
+    document.getElementById('oc-calc').style.display='block';document.getElementById('oc-calc').innerHTML=calc;
+    // Interpretation
+    let interp=`<strong>Interpretasi Hasil:</strong><br><br>`;
+    interp+=`- Dengan plan n=${n} dan c=${c}, lot dengan kualitas p=1% memiliki probabilitas diterima sebesar ${(p1*100).toFixed(2)}% (sangat tinggi, produsen aman).<br>`;
+    interp+=`- Lot dengan kualitas p=5% memiliki probabilitas diterima ${(p5*100).toFixed(2)}%. ${p5>0.5?'Lebih dari 50% lot akan diterima, artinya plan ini cukup permisif pada level 5%.':'Kurang dari 50% lot akan diterima, plan ini cukup ketat pada level 5%.'}<br>`;
+    interp+=`- <strong>AQL = ${(aql*100).toFixed(3)}%</strong>: Ini adalah tingkat cacat tertinggi yang masih dianggap acceptable (Pa=95%). Lot dengan cacat di bawah level ini hampir pasti diterima.<br>`;
+    interp+=`- <strong>LTPD = ${(ltpd*100).toFixed(3)}%</strong>: Lot dengan cacat di atas level ini hampir pasti ditolak (Pa=10%). Ini melindungi konsumen dari lot berkualitas buruk.<br>`;
+    interp+=`- <strong>Rasio Diskriminasi (LTPD/AQL) = ${(ltpd/aql).toFixed(2)}</strong>: ${(ltpd/aql)<5?'Rasio rendah menunjukkan plan sangat diskriminatif (kurva curam).':'Rasio tinggi menunjukkan plan kurang diskriminatif. Pertimbangkan menaikkan n untuk kurva lebih curam.'}`;
+    document.getElementById('oc-interp').style.display='block';document.getElementById('oc-interp').innerHTML=interp;
+}
+function compareOC(){
+    const plans=[{n:50,c:2,color:'#2563eb'},{n:100,c:4,color:'#059669'},{n:50,c:5,color:'#d97706'},{n:150,c:3,color:'#7c3aed'}];
+    const pVals=[];for(let p=0;p<=0.20;p+=0.005)pVals.push((p*100).toFixed(1));
+    const ds=plans.map(pl=>({label:`n=${pl.n}, c=${pl.c}`,data:pVals.map((_,i)=>Pa(i*0.005,pl.n,pl.c)),borderColor:pl.color,tension:.4,pointRadius:0,fill:false}));
+    const ctx=document.getElementById('ocChart').getContext('2d');if(ocChart)ocChart.destroy();
+    ocChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Perbandingan Kurva OC',color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'P(Accept)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0,max:1}}}});
+    document.getElementById('oc-calc').style.display='none';document.getElementById('oc-interp').style.display='none';
+}
+</script>
+
+
+<script>
+// ===== AOQ WITH CALCULATION STEPS =====
+let aoqChart=null;
+function drawAOQ(){
+    const n=+document.getElementById('aoq-n').value,c=+document.getElementById('aoq-c').value,N=+document.getElementById('aoq-N').value;
+    const pVals=[],aoqVals=[];let maxAOQ=0,maxP=0;
+    for(let p=0;p<=0.25;p+=0.002){const pa=Pa(p,n,c),aoq=pa*p*(N-n)/N;pVals.push((p*100).toFixed(1));aoqVals.push(aoq*100);if(aoq>maxAOQ){maxAOQ=aoq;maxP=p;}}
+    // Build vertical line at maxP
+    const aoqlVertical=pVals.map(v=>{return(Math.abs(parseFloat(v)-maxP*100)<0.15)?maxAOQ*100*1.3:null;});
+    const ctx=document.getElementById('aoqChart').getContext('2d');if(aoqChart)aoqChart.destroy();
+    aoqChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
+        {label:'AOQ (%)',data:aoqVals,borderColor:'#d97706',backgroundColor:'rgba(217,119,6,.06)',fill:true,tension:.4,pointRadius:0},
+        {label:`AOQL=${(maxAOQ*100).toFixed(3)}%`,data:pVals.map(()=>maxAOQ*100),borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,fill:false},
+        {label:`p AOQL = ${(maxP*100).toFixed(2)}%`,data:aoqlVertical,borderColor:'#7c3aed',borderDash:[4,4],pointRadius:0,fill:false,borderWidth:1.5,spanGaps:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva AOQ (n=${n}, c=${c}, N=${N})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'Incoming p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'AOQ (%)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
+    // Calculation steps
+    const p5pa=Pa(0.05,n,c),aoq5=p5pa*0.05*(N-n)/N;
+    const p10pa=Pa(0.10,n,c),aoq10=p10pa*0.10*(N-n)/N;
+    let calc=`<strong>Langkah Perhitungan AOQ (n=${n}, c=${c}, N=${N}):</strong><br><br>`;
+    calc+=`1. <strong>Rumus:</strong> AOQ(p) = Pa(p) x p x (N-n)/N<br>`;
+    calc+=`2. <strong>Faktor koreksi:</strong> (N-n)/N = (${N}-${n})/${N} = ${((N-n)/N).toFixed(4)}<br>`;
+    calc+=`3. <strong>Contoh pada p = 5%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(0.05) = ${p5pa.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;AOQ = ${p5pa.toFixed(6)} x 0.05 x ${((N-n)/N).toFixed(4)} = <strong>${(aoq5*100).toFixed(4)}%</strong><br>`;
+    calc+=`4. <strong>Contoh pada p = 10%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(0.10) = ${p10pa.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;AOQ = ${p10pa.toFixed(6)} x 0.10 x ${((N-n)/N).toFixed(4)} = <strong>${(aoq10*100).toFixed(4)}%</strong><br>`;
+    calc+=`5. <strong>AOQL ditemukan pada p = ${(maxP*100).toFixed(2)}%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;AOQL = <strong>${(maxAOQ*100).toFixed(4)}%</strong>`;
+    document.getElementById('aoq-calc').style.display='block';document.getElementById('aoq-calc').innerHTML=calc;
+    // Interpretation
+    let interp=`<strong>Interpretasi Hasil:</strong><br><br>`;
+    interp+=`- <strong>AOQL = ${(maxAOQ*100).toFixed(4)}%</strong> terjadi pada incoming quality p = ${(maxP*100).toFixed(2)}%. Ini adalah titik "terburuk" dari perspektif outgoing quality.<br>`;
+    interp+=`- Artinya: tidak peduli seberapa buruk incoming quality, rata-rata outgoing quality <strong>tidak akan pernah melebihi ${(maxAOQ*100).toFixed(4)}%</strong> cacat.<br>`;
+    interp+=`- Pada p rendah (kualitas baik): AOQ mendekati p karena hampir semua lot diterima tanpa inspeksi tambahan.<br>`;
+    interp+=`- Pada p tinggi (kualitas buruk): AOQ mendekati 0 karena hampir semua lot ditolak dan diinspeksi 100% (semua cacat diganti).<br>`;
+    interp+=`- Plan ini memberikan jaminan bahwa konsumen rata-rata menerima produk dengan cacat tidak lebih dari ${(maxAOQ*100).toFixed(4)}%.`;
+    document.getElementById('aoq-interp').style.display='block';document.getElementById('aoq-interp').innerHTML=interp;
+}
+</script>
+
+
+<script>
+// ===== ATI & ASN AS SEPARATE CURVES =====
+let atiChart=null,asnChart=null;
+function drawATICurve(){
+    const n=+document.getElementById('ati-n').value,c=+document.getElementById('ati-c').value,N=+document.getElementById('ati-N').value;
+    const pVals=[],atiVals=[];
+    for(let p=0;p<=0.25;p+=0.005){const pa=Pa(p,n,c);pVals.push((p*100).toFixed(1));atiVals.push(n+(1-pa)*(N-n));}
+    const ctx=document.getElementById('atiChart').getContext('2d');if(atiChart)atiChart.destroy();
+    atiChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
+        {label:'ATI',data:atiVals,borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,.06)',fill:true,tension:.4,pointRadius:0},
+        {label:`n=${n} (minimum)`,data:pVals.map(()=>n),borderColor:'#059669',borderDash:[5,5],pointRadius:0,fill:false},
+        {label:`N=${N} (maksimum)`,data:pVals.map(()=>N),borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,fill:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva ATI (n=${n}, c=${c}, N=${N})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'ATI (item)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
+    // ATI Calculation steps
+    const pa1=Pa(0.01,n,c),ati1=n+(1-pa1)*(N-n);
+    const pa5=Pa(0.05,n,c),ati5=n+(1-pa5)*(N-n);
+    const pa10=Pa(0.10,n,c),ati10=n+(1-pa10)*(N-n);
+    let calc=`<strong>Langkah Perhitungan ATI (n=${n}, c=${c}, N=${N}):</strong><br><br>`;
+    calc+=`1. <strong>Rumus:</strong> ATI = n + (1 - Pa(p)) x (N - n)<br>`;
+    calc+=`2. <strong>Pada p = 1%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(0.01) = ${pa1.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa1.toFixed(4)}) x (${N} - ${n}) = ${n} + ${((1-pa1)*(N-n)).toFixed(2)} = <strong>${ati1.toFixed(1)} item</strong><br>`;
+    calc+=`3. <strong>Pada p = 5%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(0.05) = ${pa5.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa5.toFixed(4)}) x ${N-n} = <strong>${ati5.toFixed(1)} item</strong><br>`;
+    calc+=`4. <strong>Pada p = 10%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(0.10) = ${pa10.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ATI = ${n} + (1 - ${pa10.toFixed(4)}) x ${N-n} = <strong>${ati10.toFixed(1)} item</strong>`;
+    document.getElementById('ati-calc').style.display='block';document.getElementById('ati-calc').innerHTML=calc;
+    // ATI Interpretation
+    let interp=`<strong>Interpretasi Kurva ATI:</strong><br><br>`;
+    interp+=`- <strong>Pada p=1%:</strong> ATI = ${ati1.toFixed(0)} item. Pa sangat tinggi (${(pa1*100).toFixed(1)}%), hampir semua lot diterima hanya dengan sampel n=${n}. Inspeksi sangat efisien.<br>`;
+    interp+=`- <strong>Pada p=5%:</strong> ATI = ${ati5.toFixed(0)} item (${((ati5/N)*100).toFixed(1)}% dari lot). ${ati5>N*0.5?'Banyak lot ditolak sehingga inspeksi total meningkat drastis.':'Inspeksi masih cukup efisien.'}<br>`;
+    interp+=`- <strong>Pada p=10%:</strong> ATI = ${ati10.toFixed(0)} item (${((ati10/N)*100).toFixed(1)}% dari lot). Hampir semua lot ditolak, mendekati inspeksi 100%.<br>`;
+    interp+=`- <strong>Rentang:</strong> ATI berkisar dari ${n} (semua diterima) hingga ${N} (semua ditolak).<br>`;
+    interp+=`- <strong>Implikasi biaya:</strong> Semakin tinggi p, semakin besar biaya inspeksi karena lot yang ditolak harus diperiksa seluruhnya.`;
+    document.getElementById('ati-interp').style.display='block';document.getElementById('ati-interp').innerHTML=interp;
+}
+function drawASNCurve(){
+    const n=+document.getElementById('asn-n').value,c=+document.getElementById('asn-c').value;
+    const n1=+document.getElementById('asn-n1').value,n2=+document.getElementById('asn-n2').value;
+    const c1=+document.getElementById('asn-c1').value,r1=+document.getElementById('asn-r1').value;
+    const pVals=[],asnSingle=[],asnDouble=[];
+    for(let p=0;p<=0.25;p+=0.005){
+        pVals.push((p*100).toFixed(1));
+        asnSingle.push(n);
+        const pA1=binCDF(c1,n1,p),pR1=1-binCDF(r1-1,n1,p);
+        asnDouble.push(n1+n2*Math.max(0,1-pA1-pR1));
+    }
+    const ctx=document.getElementById('asnChart').getContext('2d');if(asnChart)asnChart.destroy();
+    asnChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
+        {label:`ASN Single (n=${n})`,data:asnSingle,borderColor:'#2563eb',borderDash:[5,5],pointRadius:0,fill:false,borderWidth:2},
+        {label:`ASN Double (n1=${n1}, n2=${n2})`,data:asnDouble,borderColor:'#d97706',backgroundColor:'rgba(217,119,6,.06)',fill:true,tension:.4,pointRadius:0,borderWidth:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva ASN: Single vs Double Sampling`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'ASN (item)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
+    // ASN Calculation steps
+    const pA1_1=binCDF(c1,n1,0.01),pR1_1=1-binCDF(r1-1,n1,0.01),asn_d1=n1+n2*Math.max(0,1-pA1_1-pR1_1);
+    const pA1_5=binCDF(c1,n1,0.05),pR1_5=1-binCDF(r1-1,n1,0.05),asn_d5=n1+n2*Math.max(0,1-pA1_5-pR1_5);
+    const pA1_10=binCDF(c1,n1,0.10),pR1_10=1-binCDF(r1-1,n1,0.10),asn_d10=n1+n2*Math.max(0,1-pA1_10-pR1_10);
+    let calc=`<strong>Langkah Perhitungan ASN:</strong><br><br>`;
+    calc+=`<strong>Single Sampling:</strong> ASN = n = ${n} (konstan untuk semua p)<br><br>`;
+    calc+=`<strong>Double Sampling (n1=${n1}, n2=${n2}, c1=${c1}, r1=${r1}):</strong><br>`;
+    calc+=`Rumus: ASN = n1 + n2 x [1 - P(d1 &le; c1) - P(d1 &ge; r1)]<br><br>`;
+    calc+=`1. <strong>Pada p = 1%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &le; ${c1}) = ${pA1_1.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &ge; ${r1}) = ${pR1_1.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2) = 1 - ${pA1_1.toFixed(4)} - ${pR1_1.toFixed(4)} = ${(Math.max(0,1-pA1_1-pR1_1)).toFixed(4)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2} x ${(Math.max(0,1-pA1_1-pR1_1)).toFixed(4)} = <strong>${asn_d1.toFixed(1)} item</strong><br>`;
+    calc+=`2. <strong>Pada p = 5%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &le; ${c1}) = ${pA1_5.toFixed(6)}, P(d1 &ge; ${r1}) = ${pR1_5.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2) = ${(Math.max(0,1-pA1_5-pR1_5)).toFixed(4)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2} x ${(Math.max(0,1-pA1_5-pR1_5)).toFixed(4)} = <strong>${asn_d5.toFixed(1)} item</strong><br>`;
+    calc+=`3. <strong>Pada p = 10%:</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(d1 &le; ${c1}) = ${pA1_10.toFixed(6)}, P(d1 &ge; ${r1}) = ${pR1_10.toFixed(6)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;P(sampel 2) = ${(Math.max(0,1-pA1_10-pR1_10)).toFixed(4)}<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;ASN = ${n1} + ${n2} x ${(Math.max(0,1-pA1_10-pR1_10)).toFixed(4)} = <strong>${asn_d10.toFixed(1)} item</strong>`;
+    document.getElementById('asn-calc').style.display='block';document.getElementById('asn-calc').innerHTML=calc;
+    // ASN Interpretation
+    let interp=`<strong>Interpretasi Kurva ASN:</strong><br><br>`;
+    interp+=`- <strong>Single Sampling:</strong> ASN selalu konstan = ${n} item, tidak peduli kualitas lot.<br>`;
+    interp+=`- <strong>Double Sampling pada p=1%:</strong> ASN = ${asn_d1.toFixed(1)} item. ${asn_d1<n?`Hemat ${(n-asn_d1).toFixed(1)} item dibanding single karena banyak lot langsung diterima di tahap 1.`:'Tidak banyak penghematan.'}<br>`;
+    interp+=`- <strong>Double Sampling pada p=5%:</strong> ASN = ${asn_d5.toFixed(1)} item. Ini adalah area "abu-abu" dimana banyak lot memerlukan sampel kedua (P sampel 2 = ${((1-pA1_5-pR1_5)*100).toFixed(1)}%).<br>`;
+    interp+=`- <strong>Double Sampling pada p=10%:</strong> ASN = ${asn_d10.toFixed(1)} item. ${asn_d10<n?`Hemat ${(n-asn_d10).toFixed(1)} item karena banyak lot langsung ditolak di tahap 1.`:'Banyak lot langsung ditolak di tahap 1.'}<br>`;
+    interp+=`- <strong>Keunggulan Double Sampling:</strong> ASN paling kecil pada p sangat rendah (lot baik, langsung terima) dan p tinggi (lot buruk, langsung tolak). ASN mendekati single pada zona tengah dimana keputusan tidak pasti.`;
+    document.getElementById('asn-interp').style.display='block';document.getElementById('asn-interp').innerHTML=interp;
+}
+</script>
+
+
+<script>
+// ===== SIMULATOR (ADAPTIVE CONTROLS) =====
+function updateSimControls(){
+    const plan=document.getElementById('sim-plan').value;
+    document.getElementById('sim-single-fields').style.display=plan==='single'?'':'none';
+    document.getElementById('sim-double-fields').style.display=plan==='double'?'':'none';
+}
+let mcChart=null;
+function runMC(){
+    const plan=document.getElementById('sim-plan').value;
+    const runs=+document.getElementById('sim-runs').value;
+    const p=+document.getElementById('sim-p').value/100;
+    let accepts=0;const defects=[];
+
+    if(plan==='single'){
+        const n=+document.getElementById('sim-n').value,c=+document.getElementById('sim-c').value;
+        for(let r=0;r<runs;r++){let d=0;for(let i=0;i<n;i++)if(Math.random()<p)d++;defects.push(d);if(d<=c)accepts++;}
+        const emp=accepts/runs,theo=Pa(p,n,c);
+        showMCChart(defects,c,runs);
+        document.getElementById('mc-result').innerHTML=`<div class="result-box" style="background:#eff6ff;border:2px solid #2563eb;color:#1e40af"><strong>Single Sampling (n=${n}, c=${c}, p=${(p*100).toFixed(1)}%):</strong><br>P(accept) Empiris = ${(emp*100).toFixed(2)}% | Teoritis = ${(theo*100).toFixed(2)}%<br><span style="font-size:.82em;font-weight:normal">${runs} simulasi | Hijau=diterima, Merah=ditolak</span></div>`;
+    } else {
+        const n1=+document.getElementById('sim-n1').value,c1=+document.getElementById('sim-c1').value,r1=+document.getElementById('sim-r1').value;
+        const n2=+document.getElementById('sim-n2').value,c2=+document.getElementById('sim-c2').value;
+        let totalSamples=0;
+        for(let r=0;r<runs;r++){
+            let d1=0;for(let i=0;i<n1;i++)if(Math.random()<p)d1++;
+            if(d1<=c1){accepts++;defects.push(d1);totalSamples+=n1;}
+            else if(d1>=r1){defects.push(d1);totalSamples+=n1;}
+            else{let d2=0;for(let i=0;i<n2;i++)if(Math.random()<p)d2++;defects.push(d1+d2);totalSamples+=n1+n2;if(d1+d2<=c2)accepts++;}
+        }
+        const emp=accepts/runs,avgSample=totalSamples/runs;
+        showMCChart(defects,c2,runs);
+        document.getElementById('mc-result').innerHTML=`<div class="result-box" style="background:#eff6ff;border:2px solid #2563eb;color:#1e40af"><strong>Double Sampling (n1=${n1}, c1=${c1}, r1=${r1}, n2=${n2}, c2=${c2}, p=${(p*100).toFixed(1)}%):</strong><br>P(accept) Empiris = ${(emp*100).toFixed(2)}% | ASN rata-rata = ${avgSample.toFixed(1)} item<br><span style="font-size:.82em;font-weight:normal">${runs} simulasi</span></div>`;
+    }
+}
+function showMCChart(defects,threshold,runs){
+    const maxD=Math.max(...defects,threshold+5);
+    const hist=new Array(maxD+1).fill(0);defects.forEach(d=>{if(d<=maxD)hist[d]++;});
+    const labels=[],data=[],colors=[];
+    for(let i=0;i<=maxD;i++){labels.push(i+'');data.push(hist[i]);colors.push(i<=threshold?'rgba(22,163,74,.6)':'rgba(220,38,38,.6)');}
+    const ctx=document.getElementById('mcChart').getContext('2d');if(mcChart)mcChart.destroy();
+    mcChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Frekuensi',data,backgroundColor:colors,borderWidth:1}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Distribusi Cacat (${runs} simulasi)`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{display:false}},
+        scales:{x:{title:{display:true,text:'Jumlah Cacat',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'Frekuensi',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}}}}});
+}
+
+// ===== COMPARISON: THEORETICAL vs EMPIRICAL OC CURVE =====
+let compChart=null;
+function runComparison(){
+    const n=+document.getElementById('comp-n').value;
+    const c=+document.getElementById('comp-c').value;
+    const runs=+document.getElementById('comp-runs').value;
+    const pVals=[],theoretical=[],empirical=[];
+    for(let p=0;p<=0.25;p+=0.01){
+        pVals.push((p*100).toFixed(0));
+        theoretical.push(Pa(p,n,c));
+        let acc=0;
+        for(let r=0;r<runs;r++){let d=0;for(let i=0;i<n;i++)if(Math.random()<p)d++;if(d<=c)acc++;}
+        empirical.push(acc/runs);
+    }
+    const ctx=document.getElementById('compChart').getContext('2d');
+    if(compChart)compChart.destroy();
+    compChart=new Chart(ctx,{
+        type:'line',
+        data:{labels:pVals,datasets:[
+            {label:'Teoritis (Binomial)',data:theoretical,borderColor:'#2563eb',tension:.4,pointRadius:0,fill:false,borderWidth:2},
+            {label:`Empiris (${runs} runs/titik)`,data:empirical,borderColor:'#d97706',tension:.1,pointRadius:4,pointBackgroundColor:'#d97706',fill:false,borderWidth:1.5}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{title:{display:true,text:`Kurva OC: Teoritis vs Empiris (n=${n}, c=${c})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},
+            scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'P(Accept)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0,max:1}}
+        }
+    });
+}
+
+// ===== INIT =====
+window.addEventListener('load',()=>{if(window.MathJax)MathJax.typeset();});
+</script>
+</body>
+</html>
