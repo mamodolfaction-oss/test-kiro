@@ -408,6 +408,17 @@ svg.fc .lt{font-size:10px;fill:#64748b}
 <div id="mc-result"></div>
 <div class="chart-container"><canvas id="mcChart"></canvas></div>
 </div>
+<div class="card">
+<h3>Perbandingan Kurva OC: Teoritis vs Empiris</h3>
+<p>Validasi kurva OC teoritis dengan hasil simulasi Monte Carlo (1000 run per titik p).</p>
+<div class="controls">
+<div><label>n:</label><input type="number" id="comp-n" value="50" min="5" max="200"></div>
+<div><label>c:</label><input type="number" id="comp-c" value="3" min="0" max="15"></div>
+<div><label>Runs per titik:</label><input type="number" id="comp-runs" value="1000" min="100" max="5000"></div>
+<div><button class="btn btn-primary" onclick="runComparison()">Bandingkan Teoritis vs Empiris</button></div>
+</div>
+<div class="chart-container"><canvas id="compChart"></canvas></div>
+</div>
 </div>
 
 </div><!-- end container -->
@@ -677,6 +688,35 @@ function showMCChart(defects,threshold,runs){
     mcChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Frekuensi',data,backgroundColor:colors,borderWidth:1}]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Distribusi Cacat (${runs} simulasi)`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{display:false}},
         scales:{x:{title:{display:true,text:'Jumlah Cacat',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'Frekuensi',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}}}}});
+}
+
+// ===== COMPARISON: THEORETICAL vs EMPIRICAL OC CURVE =====
+let compChart=null;
+function runComparison(){
+    const n=+document.getElementById('comp-n').value;
+    const c=+document.getElementById('comp-c').value;
+    const runs=+document.getElementById('comp-runs').value;
+    const pVals=[],theoretical=[],empirical=[];
+    for(let p=0;p<=0.25;p+=0.01){
+        pVals.push((p*100).toFixed(0));
+        theoretical.push(Pa(p,n,c));
+        let acc=0;
+        for(let r=0;r<runs;r++){let d=0;for(let i=0;i<n;i++)if(Math.random()<p)d++;if(d<=c)acc++;}
+        empirical.push(acc/runs);
+    }
+    const ctx=document.getElementById('compChart').getContext('2d');
+    if(compChart)compChart.destroy();
+    compChart=new Chart(ctx,{
+        type:'line',
+        data:{labels:pVals,datasets:[
+            {label:'Teoritis (Binomial)',data:theoretical,borderColor:'#2563eb',tension:.4,pointRadius:0,fill:false,borderWidth:2},
+            {label:`Empiris (${runs} runs/titik)`,data:empirical,borderColor:'#d97706',tension:.1,pointRadius:4,pointBackgroundColor:'#d97706',fill:false,borderWidth:1.5}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{title:{display:true,text:`Kurva OC: Teoritis vs Empiris (n=${n}, c=${c})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},
+            scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'P(Accept)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0,max:1}}
+        }
+    });
 }
 
 // ===== INIT =====
