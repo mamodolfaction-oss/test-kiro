@@ -474,6 +474,28 @@ function runSingle(){
     const sample=[];for(let i=0;i<n;i++)sample.push(Math.random()<p?1:0);
     const d=sample.reduce((a,b)=>a+b,0),accepted=d<=c,pa=Pa(p,n,c);
     let h=`<div class="result-box ${accepted?'result-accept':'result-reject'}">Hasil: ${accepted?'LOT DITERIMA':'LOT DITOLAK'}<br><span style="font-size:.82em;font-weight:normal">d=${d}, c=${c}, P(accept) teoritis=${(pa*100).toFixed(2)}%</span></div>`;
+    // Calculation explanation
+    h+=`<div class="calc-steps"><strong>Perhitungan P(accept):</strong><br><br>`;
+    h+=`<strong>Rumus:</strong> P(accept) = &sum; C(n,x) . p<sup>x</sup> . (1-p)<sup>(n-x)</sup> untuk x = 0 sampai c<br><br>`;
+    h+=`<strong>Parameter:</strong> n = ${n}, c = ${c}, p = ${(p*100).toFixed(1)}% = ${p.toFixed(4)}<br><br>`;
+    h+=`<strong>Langkah:</strong><br>`;
+    let cumProb=0;
+    for(let x=0;x<=Math.min(c,5);x++){
+        const px=binPMF(x,n,p);cumProb+=px;
+        h+=`&nbsp;&nbsp;P(X=${x}) = C(${n},${x}) . ${p.toFixed(4)}<sup>${x}</sup> . ${(1-p).toFixed(4)}<sup>${n-x}</sup> = ${px.toFixed(6)}<br>`;
+    }
+    if(c>5)h+=`&nbsp;&nbsp;... (hingga x=${c})<br>`;
+    h+=`<br><strong>P(accept) = P(X &le; ${c}) = ${pa.toFixed(6)} = ${(pa*100).toFixed(2)}%</strong>`;
+    h+=`</div>`;
+    // Interpretation
+    h+=`<div class="interp-box"><strong>Interpretasi:</strong><br>`;
+    h+=`- Dengan proporsi cacat p = ${(p*100).toFixed(1)}%, sampling plan ini (n=${n}, c=${c}) memberikan probabilitas penerimaan sebesar <strong>${(pa*100).toFixed(2)}%</strong>.<br>`;
+    h+=`- Dalam simulasi ini ditemukan d = ${d} cacat dari ${n} sampel. ${accepted?`Karena d=${d} &le; c=${c}, lot <strong>diterima</strong>.`:`Karena d=${d} &gt; c=${c}, lot <strong>ditolak</strong>.`}<br>`;
+    if(pa>0.9)h+=`- P(accept) sangat tinggi (${(pa*100).toFixed(1)}%), menunjukkan plan ini sangat permisif pada level cacat ${(p*100).toFixed(1)}%. Risiko produsen rendah.`;
+    else if(pa>0.5)h+=`- P(accept) moderat (${(pa*100).toFixed(1)}%), lot pada level cacat ini memiliki peluang lebih besar diterima daripada ditolak.`;
+    else if(pa>0.1)h+=`- P(accept) rendah (${(pa*100).toFixed(1)}%), lot pada level cacat ini kemungkinan besar ditolak. Plan cukup protektif bagi konsumen.`;
+    else h+=`- P(accept) sangat rendah (${(pa*100).toFixed(1)}%), lot pada level cacat ini hampir pasti ditolak. Konsumen terlindungi dengan baik.`;
+    h+=`</div>`;
     document.getElementById('ss-result').innerHTML=h;
     const ct=document.getElementById('ss-anim');ct.innerHTML='';
     const show=Math.min(n,80),cols=Math.ceil(Math.sqrt(show*2));
@@ -512,6 +534,34 @@ function runDouble(){
         v+=`<div class="stage-info" style="font-weight:600;color:${decision==='accept'?'#16a34a':'#dc2626'}">Keputusan: ${decision==='accept'?'TERIMA':'TOLAK'}</div></div>`;
     }
     v+='</div>';document.getElementById('ds-visual').innerHTML=v;
+    // Calculation explanation for Double Sampling
+    const pa1=Pa(p,n1,c1);  // P(accept at stage 1)
+    let pStage2=0;
+    for(let x=c1+1;x<r1;x++)pStage2+=binPMF(x,n1,p);
+    let pAcceptTotal=pa1;
+    for(let x=c1+1;x<r1;x++){const pX=binPMF(x,n1,p);const pA2=binCDF(c2-x,n2,p);pAcceptTotal+=pX*pA2;}
+    let calc='<div class="calc-steps"><strong>Perhitungan P(accept) Double Sampling:</strong><br><br>';
+    calc+=`<strong>Rumus:</strong> P(accept) = P(d1 &le; c1) + &sum; P(D1=x) . P(x+d2 &le; c2) untuk x = c1+1 sampai r1-1<br><br>`;
+    calc+=`<strong>Parameter:</strong> n1=${n1}, c1=${c1}, r1=${r1}, n2=${n2}, c2=${c2}, p=${(p*100).toFixed(1)}%<br><br>`;
+    calc+=`<strong>Langkah 1:</strong> P(terima tahap 1) = P(d1 &le; ${c1}) = ${pa1.toFixed(6)} = ${(pa1*100).toFixed(2)}%<br>`;
+    calc+=`<strong>Langkah 2:</strong> P(tolak tahap 1) = P(d1 &ge; ${r1}) = ${(1-binCDF(r1-1,n1,p)).toFixed(6)} = ${((1-binCDF(r1-1,n1,p))*100).toFixed(2)}%<br>`;
+    calc+=`<strong>Langkah 3:</strong> P(sampel kedua diperlukan) = P(${c1} &lt; d1 &lt; ${r1}) = ${pStage2.toFixed(6)} = ${(pStage2*100).toFixed(2)}%<br>`;
+    calc+=`<strong>Langkah 4:</strong> Kontribusi tahap 2:<br>`;
+    for(let x=c1+1;x<r1;x++){
+        const pX=binPMF(x,n1,p),pA2=binCDF(c2-x,n2,p);
+        calc+=`&nbsp;&nbsp;d1=${x}: P(D1=${x})=${pX.toFixed(5)} x P(d2 &le; ${c2-x})=${pA2.toFixed(5)} = ${(pX*pA2).toFixed(6)}<br>`;
+    }
+    calc+=`<br><strong>P(accept) total = ${pAcceptTotal.toFixed(6)} = ${(pAcceptTotal*100).toFixed(2)}%</strong></div>`;
+    // Interpretation
+    calc+=`<div class="interp-box"><strong>Interpretasi:</strong><br>`;
+    calc+=`- Dengan p=${(p*100).toFixed(1)}%, probabilitas lot diterima secara keseluruhan adalah <strong>${(pAcceptTotal*100).toFixed(2)}%</strong>.<br>`;
+    calc+=`- Probabilitas keputusan langsung di tahap 1: ${((pa1+1-binCDF(r1-1,n1,p))*100).toFixed(1)}% (terima: ${(pa1*100).toFixed(1)}%, tolak: ${((1-binCDF(r1-1,n1,p))*100).toFixed(1)}%).<br>`;
+    calc+=`- Probabilitas memerlukan sampel kedua: ${(pStage2*100).toFixed(1)}%.<br>`;
+    if(pAcceptTotal>0.9)calc+=`- Plan ini sangat permisif pada p=${(p*100).toFixed(1)}%, hampir semua lot akan diterima.`;
+    else if(pAcceptTotal>0.5)calc+=`- Pada level cacat ini, lebih banyak lot diterima daripada ditolak.`;
+    else calc+=`- Pada level cacat ini, sebagian besar lot akan ditolak. Plan protektif bagi konsumen.`;
+    calc+=`</div>`;
+    document.getElementById('ds-result').innerHTML+=calc;
 }
 
 // ===== MULTIPLE SAMPLING =====
@@ -543,7 +593,13 @@ function drawOC(){
     for(let p=0;p<=0.30;p+=0.001){if(Pa(p,n,c)<=0.95&&aql===0)aql=p;if(Pa(p,n,c)<=0.10&&ltpd===0){ltpd=p;break;}}
     const ctx=document.getElementById('ocChart').getContext('2d');
     if(ocChart)ocChart.destroy();
-    ocChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[{label:`OC (n=${n}, c=${c})`,data:paVals,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.06)',fill:true,tension:.4,pointRadius:0}]},
+    // Build LTPD vertical line data
+    const ltpdLine=pVals.map(v=>{const pv=parseFloat(v);return(Math.abs(pv-ltpd*100)<0.3)?1:null;});
+    ocChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
+        {label:`OC (n=${n}, c=${c})`,data:paVals,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.06)',fill:true,tension:.4,pointRadius:0},
+        {label:`LTPD = ${(ltpd*100).toFixed(2)}%`,data:ltpdLine,borderColor:'#dc2626',borderWidth:2,pointRadius:0,fill:false,spanGaps:false,segment:{borderDash:[4,4]}},
+        {label:'Pa = 0.10',data:pVals.map(()=>0.10),borderColor:'#dc2626',borderDash:[4,4],pointRadius:0,fill:false,borderWidth:1.2}
+    ]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva OC: n=${n}, c=${c}`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},
         scales:{x:{title:{display:true,text:'p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'P(Accept)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0,max:1}}}});
     // Calculation steps
@@ -557,7 +613,11 @@ function drawOC(){
     calc+=`3. <strong>Contoh pada p = 10% (0.10):</strong><br>`;
     calc+=`&nbsp;&nbsp;&nbsp;P_a(0.10) = <strong>${(p10*100).toFixed(4)}%</strong><br>`;
     calc+=`4. <strong>AQL (P_a = 0.95):</strong> p &asymp; ${(aql*100).toFixed(3)}%<br>`;
-    calc+=`5. <strong>LTPD (P_a = 0.10):</strong> p &asymp; ${(ltpd*100).toFixed(3)}%<br>`;
+    calc+=`5. <strong>LTPD (P_a = 0.10):</strong><br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Dicari p sehingga Pa(p) = 0.10<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;Pa(${(ltpd*100).toFixed(3)}%) = ${Pa(ltpd,n,c).toFixed(4)} &asymp; 0.10<br>`;
+    calc+=`&nbsp;&nbsp;&nbsp;<strong>LTPD = ${(ltpd*100).toFixed(3)}%</strong><br>`;
+    calc+=`6. <strong>Rasio Diskriminasi:</strong> LTPD/AQL = ${(ltpd*100).toFixed(3)} / ${(aql*100).toFixed(3)} = ${(ltpd/aql).toFixed(2)}<br>`;
     document.getElementById('oc-calc').style.display='block';document.getElementById('oc-calc').innerHTML=calc;
     // Interpretation
     let interp=`<strong>Interpretasi Hasil:</strong><br><br>`;
@@ -586,10 +646,13 @@ function drawAOQ(){
     const n=+document.getElementById('aoq-n').value,c=+document.getElementById('aoq-c').value,N=+document.getElementById('aoq-N').value;
     const pVals=[],aoqVals=[];let maxAOQ=0,maxP=0;
     for(let p=0;p<=0.25;p+=0.002){const pa=Pa(p,n,c),aoq=pa*p*(N-n)/N;pVals.push((p*100).toFixed(1));aoqVals.push(aoq*100);if(aoq>maxAOQ){maxAOQ=aoq;maxP=p;}}
+    // Build vertical line at maxP
+    const aoqlVertical=pVals.map(v=>{return(Math.abs(parseFloat(v)-maxP*100)<0.15)?maxAOQ*100*1.3:null;});
     const ctx=document.getElementById('aoqChart').getContext('2d');if(aoqChart)aoqChart.destroy();
     aoqChart=new Chart(ctx,{type:'line',data:{labels:pVals,datasets:[
         {label:'AOQ (%)',data:aoqVals,borderColor:'#d97706',backgroundColor:'rgba(217,119,6,.06)',fill:true,tension:.4,pointRadius:0},
-        {label:`AOQL=${(maxAOQ*100).toFixed(3)}%`,data:pVals.map(()=>maxAOQ*100),borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,fill:false}
+        {label:`AOQL=${(maxAOQ*100).toFixed(3)}%`,data:pVals.map(()=>maxAOQ*100),borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,fill:false},
+        {label:`p AOQL = ${(maxP*100).toFixed(2)}%`,data:aoqlVertical,borderColor:'#7c3aed',borderDash:[4,4],pointRadius:0,fill:false,borderWidth:1.5,spanGaps:false}
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:`Kurva AOQ (n=${n}, c=${c}, N=${N})`,color:'#1e3a5f',font:{size:14,family:'Poppins'}},legend:{labels:{color:'#475569',font:{family:'Poppins'}}}},scales:{x:{title:{display:true,text:'Incoming p (%)',color:'#475569'},ticks:{color:'#64748b',maxTicksLimit:15},grid:{color:'#f1f5f9'}},y:{title:{display:true,text:'AOQ (%)',color:'#475569'},ticks:{color:'#64748b'},grid:{color:'#f1f5f9'},min:0}}}});
     // Calculation steps
     const p5pa=Pa(0.05,n,c),aoq5=p5pa*0.05*(N-n)/N;
